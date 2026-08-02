@@ -7,7 +7,7 @@ export default function Home() {
       <div className={styles.container}>
         <h1 className={styles.title}>Dashboard</h1>
         <p className={styles.subtitle}>
-          Welcome to Avexa Workspace.
+          Welcome to Avexa Workspace 🚀
         </p>
       </div>
     </AppLayout>
