@@ -1,18 +1,52 @@
 .container {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
+  padding: 40px;
 }
 
 .title {
-  font-size: 48px;
+  font-size: 36px;
   font-weight: 700;
+
+  color: #0f172a;
 }
 
 .subtitle {
-  font-size: 20px;
-  color: #666;
+  margin-top: 8px;
+  margin-bottom: 32px;
+
+  color: #64748b;
+
+  font-size: 18px;
+}
+
+.grid {
+  display: grid;
+
+  grid-template-columns: repeat(4, 1fr);
+
+  gap: 24px;
+}
+.bottomGrid {
+  display: grid;
+
+  grid-template-columns: 2fr 1fr;
+
+  gap: 24px;
+
+  margin-top: 32px;
+}
+
+.placeholder {
+  background: white;
+
+  border-radius: 18px;
+
+  padding: 24px;
+
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+
+  min-height: 300px;
+
+  font-size: 22px;
+
+  font-weight: 600;
 }

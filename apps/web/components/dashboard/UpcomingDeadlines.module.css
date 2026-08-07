@@ -1,0 +1,56 @@
+.card {
+    background: white;
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    min-height: 300px;
+  }
+  
+  .heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+    color: #2563eb;
+  }
+  
+  .heading h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #0f172a;
+  }
+  
+  .list {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .deadline {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid #edf2f7;
+  }
+  
+  .deadline:last-child {
+    border-bottom: none;
+  }
+  
+  .date {
+    min-width: 58px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2563eb;
+  }
+  
+  .title {
+    font-weight: 600;
+    color: #0f172a;
+  }
+  
+  .project {
+    margin-top: 2px;
+    font-size: 14px;
+    color: #64748b;
+  }

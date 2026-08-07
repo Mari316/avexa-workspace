@@ -1,0 +1,369 @@
+"use client";
+
+import { FormEvent, useState } from "react";
+
+import AppLayout from "../../components/layout/AppLayout";
+
+import styles from "./page.module.css";
+
+type ProjectStatus = "Active" | "On Hold";
+
+type ProjectEnvironment =
+  | "Development"
+  | "QA"
+  | "Staging"
+  | "Production"
+  | "Demo";
+
+type ProjectClient = "Pax8" | "Cybertek" | "OrangeHRM" | "Lemonade";
+
+type Project = {
+  name: string;
+  client: string;
+  environment: string;
+  taskCount: number;
+  status: ProjectStatus;
+};
+
+type ProjectFormData = {
+  name: string;
+  client: string;
+  environment: string;
+  status: ProjectStatus;
+};
+
+type FormErrors = {
+  name?: string;
+  client?: string;
+  environment?: string;
+};
+
+const clientOptions: ProjectClient[] = [
+  "Pax8",
+  "Cybertek",
+  "OrangeHRM",
+  "Lemonade",
+];
+
+const environmentOptions: ProjectEnvironment[] = [
+  "Development",
+  "QA",
+  "Staging",
+  "Production",
+  "Demo",
+];
+
+const initialProjects: Project[] = [
+  {
+    name: "Account Management",
+    client: "Pax8",
+    environment: "Staging",
+    taskCount: 12,
+    status: "Active",
+  },
+  {
+    name: "Partner Portal",
+    client: "Pax8",
+    environment: "Staging",
+    taskCount: 8,
+    status: "Active",
+  },
+  {
+    name: "Public API",
+    client: "Pax8",
+    environment: "QA",
+    taskCount: 6,
+    status: "Active",
+  },
+  {
+    name: "OrangeHRM Automation",
+    client: "OrangeHRM",
+    environment: "Demo",
+    taskCount: 4,
+    status: "Active",
+  },
+  {
+    name: "Lemonade Web",
+    client: "Lemonade",
+    environment: "Staging",
+    taskCount: 3,
+    status: "On Hold",
+  },
+];
+
+const emptyForm: ProjectFormData = {
+  name: "",
+  client: "",
+  environment: "",
+  status: "Active",
+};
+
+function validateForm(form: ProjectFormData): FormErrors {
+  const errors: FormErrors = {};
+
+  if (!form.name.trim()) {
+    errors.name = "Project name is required.";
+  }
+
+  if (!form.client) {
+    errors.client = "Client is required.";
+  }
+
+  if (!form.environment) {
+    errors.environment = "Environment is required.";
+  }
+
+  return errors;
+}
+
+export default function ProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [form, setForm] = useState<ProjectFormData>(emptyForm);
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  function openModal() {
+    setForm(emptyForm);
+    setErrors({});
+    setIsModalOpen(true);
+  }
+
+  function closeModal() {
+    setIsModalOpen(false);
+    setForm(emptyForm);
+    setErrors({});
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const validationErrors = validateForm(form);
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
+    const newProject: Project = {
+      name: form.name.trim(),
+      client: form.client,
+      environment: form.environment,
+      taskCount: 0,
+      status: form.status,
+    };
+
+    setProjects((currentProjects) => [...currentProjects, newProject]);
+    closeModal();
+  }
+
+  return (
+    <AppLayout>
+      <main className={styles.container}>
+        <div className={styles.header}>
+          <div>
+            <h1 className={styles.title}>Projects</h1>
+            <p className={styles.subtitle}>
+              Manage QA automation projects across client organizations.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className={styles.addButton}
+            onClick={openModal}
+          >
+            + Add Project
+          </button>
+        </div>
+
+        <div className={styles.card}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Client</th>
+                <th>Environment</th>
+                <th>Tasks</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((project) => (
+                <tr key={project.name}>
+                  <td className={styles.projectName}>{project.name}</td>
+                  <td className={styles.secondaryText}>{project.client}</td>
+                  <td className={styles.secondaryText}>{project.environment}</td>
+                  <td className={styles.secondaryText}>{project.taskCount}</td>
+                  <td>
+                    <span
+                      className={`${styles.badge} ${
+                        project.status === "Active"
+                          ? styles.badgeActive
+                          : styles.badgeOnHold
+                      }`}
+                    >
+                      {project.status}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className={styles.viewAction}
+                      aria-label={`View ${project.name}`}
+                    >
+                      View →
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </main>
+
+      {isModalOpen && (
+        <div className={styles.backdrop}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-project-title"
+            className={styles.modal}
+          >
+            <h2 id="add-project-title" className={styles.modalTitle}>
+              Add Project
+            </h2>
+
+            <form className={styles.form} onSubmit={handleSubmit}>
+              <div className={styles.field}>
+                <label htmlFor="project-name" className={styles.label}>
+                  Project Name *
+                </label>
+                <input
+                  id="project-name"
+                  type="text"
+                  className={styles.input}
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      name: event.target.value,
+                    }))
+                  }
+                  aria-invalid={Boolean(errors.name)}
+                  aria-describedby={
+                    errors.name ? "project-name-error" : undefined
+                  }
+                />
+                {errors.name && (
+                  <p id="project-name-error" className={styles.error}>
+                    {errors.name}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="project-client" className={styles.label}>
+                  Client *
+                </label>
+                <select
+                  id="project-client"
+                  className={styles.select}
+                  value={form.client}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      client: event.target.value,
+                    }))
+                  }
+                  aria-invalid={Boolean(errors.client)}
+                  aria-describedby={
+                    errors.client ? "project-client-error" : undefined
+                  }
+                >
+                  <option value="">Select a client</option>
+                  {clientOptions.map((client) => (
+                    <option key={client} value={client}>
+                      {client}
+                    </option>
+                  ))}
+                </select>
+                {errors.client && (
+                  <p id="project-client-error" className={styles.error}>
+                    {errors.client}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="project-environment" className={styles.label}>
+                  Environment *
+                </label>
+                <select
+                  id="project-environment"
+                  className={styles.select}
+                  value={form.environment}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      environment: event.target.value,
+                    }))
+                  }
+                  aria-invalid={Boolean(errors.environment)}
+                  aria-describedby={
+                    errors.environment ? "project-environment-error" : undefined
+                  }
+                >
+                  <option value="">Select an environment</option>
+                  {environmentOptions.map((environment) => (
+                    <option key={environment} value={environment}>
+                      {environment}
+                    </option>
+                  ))}
+                </select>
+                {errors.environment && (
+                  <p id="project-environment-error" className={styles.error}>
+                    {errors.environment}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="project-status" className={styles.label}>
+                  Status *
+                </label>
+                <select
+                  id="project-status"
+                  className={styles.select}
+                  value={form.status}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      status: event.target.value as ProjectStatus,
+                    }))
+                  }
+                >
+                  <option value="Active">Active</option>
+                  <option value="On Hold">On Hold</option>
+                </select>
+              </div>
+
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.cancelButton}
+                  onClick={closeModal}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className={styles.submitButton}>
+                  Add Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </AppLayout>
+  );
+}
