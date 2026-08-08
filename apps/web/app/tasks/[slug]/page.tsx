@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FormEvent, useState } from "react";
 import { useParams } from "next/navigation";
 
 import AppLayout from "../../../components/layout/AppLayout";
@@ -8,11 +9,33 @@ import {
   getClientSlug,
   getProjectByName,
   getTaskBySlug,
+  projects,
+  type Task,
   type TaskPriority,
   type TaskStatus,
 } from "../../../lib/mockData";
 
 import styles from "./page.module.css";
+
+type TaskAssignee = "Mari" | "Chris" | "Alex";
+
+type EditTaskFormData = {
+  title: string;
+  project: string;
+  assignee: string;
+  dueDate: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+};
+
+type FormErrors = {
+  title?: string;
+  project?: string;
+  assignee?: string;
+  dueDate?: string;
+};
+
+const assigneeOptions: TaskAssignee[] = ["Mari", "Chris", "Alex"];
 
 const priorityBadgeClass: Record<TaskPriority, string> = {
   High: styles.priorityHigh,
@@ -28,10 +51,121 @@ const statusBadgeClass: Record<TaskStatus, string> = {
   Done: styles.statusDone,
 };
 
+function parseDisplayDueDate(displayDate: string): string {
+  const parsed = new Date(`${displayDate}, 2026`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatDueDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function validateForm(form: EditTaskFormData): FormErrors {
+  const errors: FormErrors = {};
+
+  if (!form.title.trim()) {
+    errors.title = "Task name is required.";
+  }
+
+  if (!form.project) {
+    errors.project = "Project is required.";
+  }
+
+  if (!form.assignee) {
+    errors.assignee = "Assignee is required.";
+  }
+
+  if (!form.dueDate) {
+    errors.dueDate = "Due date is required.";
+  }
+
+  return errors;
+}
+
+function taskToFormData(task: Task): EditTaskFormData {
+  return {
+    title: task.title,
+    project: task.project,
+    assignee: task.assignee,
+    dueDate: parseDisplayDueDate(task.dueDate),
+    priority: task.priority,
+    status: task.status,
+  };
+}
+
 export default function TaskDetailsPage() {
   const params = useParams();
   const slug = typeof params.slug === "string" ? params.slug : "";
-  const task = getTaskBySlug(slug);
+  const [task, setTask] = useState<Task | undefined>(() => getTaskBySlug(slug));
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [form, setForm] = useState<EditTaskFormData>({
+    title: "",
+    project: "",
+    assignee: "",
+    dueDate: "",
+    priority: "Medium",
+    status: "To Do",
+  });
+  const [errors, setErrors] = useState<FormErrors>({});
+
+  function openModal() {
+    if (!task) {
+      return;
+    }
+
+    setForm(taskToFormData(task));
+    setErrors({});
+    setIsModalOpen(true);
+  }
+
+  function closeModal() {
+    setIsModalOpen(false);
+    setErrors({});
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!task) {
+      return;
+    }
+
+    const validationErrors = validateForm(form);
+    setErrors(validationErrors);
+
+    if (Object.keys(validationErrors).length > 0) {
+      return;
+    }
+
+    const selectedProject = getProjectByName(form.project);
+
+    setTask({
+      ...task,
+      title: form.title.trim(),
+      project: form.project,
+      client: selectedProject?.client ?? task.client,
+      assignee: form.assignee,
+      dueDate: formatDueDate(form.dueDate),
+      priority: form.priority,
+      status: form.status,
+    });
+    closeModal();
+  }
 
   if (!task) {
     return (
@@ -60,12 +194,22 @@ export default function TaskDetailsPage() {
 
         <div className={styles.detailsHeader}>
           <div className={styles.titleRow}>
-            <h1 className={styles.title}>{task.title}</h1>
-            <span
-              className={`${styles.badge} ${statusBadgeClass[task.status]}`}
+            <div className={styles.titleGroup}>
+              <h1 className={styles.title}>{task.title}</h1>
+              <span
+                className={`${styles.badge} ${statusBadgeClass[task.status]}`}
+              >
+                {task.status}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              className={styles.editButton}
+              onClick={openModal}
             >
-              {task.status}
-            </span>
+              Edit Task
+            </button>
           </div>
 
           <div className={styles.meta}>
@@ -118,6 +262,200 @@ export default function TaskDetailsPage() {
           </div>
         </div>
       </main>
+
+      {isModalOpen && (
+        <div className={styles.backdrop}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-task-title"
+            className={styles.modal}
+          >
+            <h2 id="edit-task-title" className={styles.modalTitle}>
+              Edit Task
+            </h2>
+
+            <form className={styles.form} onSubmit={handleSubmit}>
+              <div className={styles.field}>
+                <label htmlFor="edit-task-name" className={styles.label}>
+                  Task Name *
+                </label>
+                <input
+                  id="edit-task-name"
+                  type="text"
+                  className={styles.input}
+                  value={form.title}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      title: event.target.value,
+                    }))
+                  }
+                  aria-invalid={Boolean(errors.title)}
+                  aria-describedby={
+                    errors.title ? "edit-task-name-error" : undefined
+                  }
+                />
+                {errors.title && (
+                  <p id="edit-task-name-error" className={styles.error}>
+                    {errors.title}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="edit-task-project" className={styles.label}>
+                  Project *
+                </label>
+                <select
+                  id="edit-task-project"
+                  className={styles.select}
+                  value={form.project}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      project: event.target.value,
+                    }))
+                  }
+                  aria-invalid={Boolean(errors.project)}
+                  aria-describedby={
+                    errors.project ? "edit-task-project-error" : undefined
+                  }
+                >
+                  <option value="">Select a project</option>
+                  {projects.map((projectOption) => (
+                    <option key={projectOption.slug} value={projectOption.name}>
+                      {projectOption.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.project && (
+                  <p id="edit-task-project-error" className={styles.error}>
+                    {errors.project}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="edit-task-assignee" className={styles.label}>
+                  Assignee *
+                </label>
+                <select
+                  id="edit-task-assignee"
+                  className={styles.select}
+                  value={form.assignee}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      assignee: event.target.value,
+                    }))
+                  }
+                  aria-invalid={Boolean(errors.assignee)}
+                  aria-describedby={
+                    errors.assignee ? "edit-task-assignee-error" : undefined
+                  }
+                >
+                  <option value="">Select an assignee</option>
+                  {assigneeOptions.map((assignee) => (
+                    <option key={assignee} value={assignee}>
+                      {assignee}
+                    </option>
+                  ))}
+                </select>
+                {errors.assignee && (
+                  <p id="edit-task-assignee-error" className={styles.error}>
+                    {errors.assignee}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="edit-task-due-date" className={styles.label}>
+                  Due Date *
+                </label>
+                <input
+                  id="edit-task-due-date"
+                  type="date"
+                  className={styles.input}
+                  value={form.dueDate}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      dueDate: event.target.value,
+                    }))
+                  }
+                  aria-invalid={Boolean(errors.dueDate)}
+                  aria-describedby={
+                    errors.dueDate ? "edit-task-due-date-error" : undefined
+                  }
+                />
+                {errors.dueDate && (
+                  <p id="edit-task-due-date-error" className={styles.error}>
+                    {errors.dueDate}
+                  </p>
+                )}
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="edit-task-priority" className={styles.label}>
+                  Priority *
+                </label>
+                <select
+                  id="edit-task-priority"
+                  className={styles.select}
+                  value={form.priority}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      priority: event.target.value as TaskPriority,
+                    }))
+                  }
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="edit-task-status" className={styles.label}>
+                  Status *
+                </label>
+                <select
+                  id="edit-task-status"
+                  className={styles.select}
+                  value={form.status}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      status: event.target.value as TaskStatus,
+                    }))
+                  }
+                >
+                  <option value="To Do">To Do</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Review">Review</option>
+                  <option value="Blocked">Blocked</option>
+                  <option value="Done">Done</option>
+                </select>
+              </div>
+
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.cancelButton}
+                  onClick={closeModal}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className={styles.submitButton}>
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
