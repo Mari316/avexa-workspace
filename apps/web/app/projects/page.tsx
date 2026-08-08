@@ -1,12 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import AppLayout from "../../components/layout/AppLayout";
+import {
+  getProjectSlug,
+  projects as initialProjects,
+  type Project,
+  type ProjectStatus,
+} from "../../lib/mockData";
 
 import styles from "./page.module.css";
-
-type ProjectStatus = "Active" | "On Hold";
 
 type ProjectEnvironment =
   | "Development"
@@ -16,15 +21,6 @@ type ProjectEnvironment =
   | "Demo";
 
 type ProjectClient = "Pax8" | "Cybertek" | "OrangeHRM" | "Lemonade";
-
-type Project = {
-  name: string;
-  client: string;
-  environment: string;
-  taskCount: number;
-  status: ProjectStatus;
-};
-
 type ProjectFormData = {
   name: string;
   client: string;
@@ -51,44 +47,6 @@ const environmentOptions: ProjectEnvironment[] = [
   "Staging",
   "Production",
   "Demo",
-];
-
-const initialProjects: Project[] = [
-  {
-    name: "Account Management",
-    client: "Pax8",
-    environment: "Staging",
-    taskCount: 12,
-    status: "Active",
-  },
-  {
-    name: "Partner Portal",
-    client: "Pax8",
-    environment: "Staging",
-    taskCount: 8,
-    status: "Active",
-  },
-  {
-    name: "Public API",
-    client: "Pax8",
-    environment: "QA",
-    taskCount: 6,
-    status: "Active",
-  },
-  {
-    name: "OrangeHRM Automation",
-    client: "OrangeHRM",
-    environment: "Demo",
-    taskCount: 4,
-    status: "Active",
-  },
-  {
-    name: "Lemonade Web",
-    client: "Lemonade",
-    environment: "Staging",
-    taskCount: 3,
-    status: "On Hold",
-  },
 ];
 
 const emptyForm: ProjectFormData = {
@@ -146,6 +104,7 @@ export default function ProjectsPage() {
 
     const newProject: Project = {
       name: form.name.trim(),
+      slug: getProjectSlug(form.name.trim()),
       client: form.client,
       environment: form.environment,
       taskCount: 0,
@@ -207,13 +166,13 @@ export default function ProjectsPage() {
                     </span>
                   </td>
                   <td>
-                    <button
-                      type="button"
+                    <Link
+                      href={`/projects/${project.slug}`}
                       className={styles.viewAction}
                       aria-label={`View ${project.name}`}
                     >
                       View →
-                    </button>
+                    </Link>
                   </td>
                 </tr>
               ))}

@@ -13,10 +13,26 @@ export type ProjectStatus = "Active" | "On Hold";
 
 export type Project = {
   name: string;
+  slug: string;
   client: string;
   environment: string;
   taskCount: number;
   status: ProjectStatus;
+};
+
+export type TaskPriority = "High" | "Medium" | "Low";
+
+export type TaskStatus = "To Do" | "In Progress" | "Review" | "Blocked" | "Done";
+
+export type Task = {
+  id: string;
+  title: string;
+  project: string;
+  client: string;
+  assignee: string;
+  dueDate: string;
+  priority: TaskPriority;
+  status: TaskStatus;
 };
 
 export type ContactStatus = "Active" | "Inactive";
@@ -69,6 +85,7 @@ export const clients: Client[] = [
 export const projects: Project[] = [
   {
     name: "Account Management",
+    slug: "account-management",
     client: "Pax8",
     environment: "Staging",
     taskCount: 12,
@@ -76,6 +93,7 @@ export const projects: Project[] = [
   },
   {
     name: "Partner Portal",
+    slug: "partner-portal",
     client: "Pax8",
     environment: "Staging",
     taskCount: 8,
@@ -83,6 +101,7 @@ export const projects: Project[] = [
   },
   {
     name: "Public API",
+    slug: "public-api",
     client: "Pax8",
     environment: "QA",
     taskCount: 6,
@@ -90,6 +109,7 @@ export const projects: Project[] = [
   },
   {
     name: "OrangeHRM Automation",
+    slug: "orangehrm-automation",
     client: "OrangeHRM",
     environment: "Demo",
     taskCount: 4,
@@ -97,12 +117,73 @@ export const projects: Project[] = [
   },
   {
     name: "Lemonade Web",
+    slug: "lemonade-web",
     client: "Lemonade",
     environment: "Staging",
     taskCount: 3,
     status: "On Hold",
   },
 ];
+
+export const tasks: Task[] = [
+  {
+    id: "task-1",
+    title: "Finish regression coverage",
+    project: "Account Management",
+    client: "Pax8",
+    assignee: "Mari",
+    dueDate: "Aug 8",
+    priority: "High",
+    status: "In Progress",
+  },
+  {
+    id: "task-2",
+    title: "Review automation PR",
+    project: "Partner Portal",
+    client: "Pax8",
+    assignee: "Chris",
+    dueDate: "Aug 9",
+    priority: "Medium",
+    status: "Review",
+  },
+  {
+    id: "task-3",
+    title: "Update Playwright tests",
+    project: "OrangeHRM Automation",
+    client: "OrangeHRM",
+    assignee: "Mari",
+    dueDate: "Aug 12",
+    priority: "Medium",
+    status: "To Do",
+  },
+  {
+    id: "task-4",
+    title: "Investigate login bug",
+    project: "Lemonade Web",
+    client: "Lemonade",
+    assignee: "Alex",
+    dueDate: "Aug 7",
+    priority: "High",
+    status: "Blocked",
+  },
+  {
+    id: "task-5",
+    title: "Validate API regression",
+    project: "Public API",
+    client: "Pax8",
+    assignee: "Mari",
+    dueDate: "Aug 15",
+    priority: "Low",
+    status: "To Do",
+  },
+];
+
+export const clientProjects: Record<string, string[]> = {
+  Pax8: ["Account Management", "Partner Portal", "Public API"],
+  OrangeHRM: ["OrangeHRM Automation"],
+  Lemonade: ["Lemonade Web"],
+  Cybertek: ["Cybertek Automation"],
+};
 
 export const contacts: Contact[] = [
   {
@@ -165,8 +246,16 @@ export function getClientSlug(name: string): string {
   return name.toLowerCase();
 }
 
+export function getProjectSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, "-");
+}
+
 export function getClientBySlug(slug: string): Client | undefined {
   return clients.find((client) => client.slug === slug);
+}
+
+export function getProjectBySlug(slug: string): Project | undefined {
+  return projects.find((project) => project.slug === slug);
 }
 
 export function getProjectsByClient(clientName: string): Project[] {
@@ -175,6 +264,10 @@ export function getProjectsByClient(clientName: string): Project[] {
 
 export function getContactsByClient(clientName: string): Contact[] {
   return contacts.filter((contact) => contact.client === clientName);
+}
+
+export function getTasksByProject(projectName: string): Task[] {
+  return tasks.filter((task) => task.project === projectName);
 }
 
 export function formatContactName(firstName: string, lastName: string): string {

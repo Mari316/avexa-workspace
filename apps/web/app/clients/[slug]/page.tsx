@@ -88,7 +88,14 @@ export default function ClientDetailsPage() {
                 <tbody>
                   {clientProjects.map((project) => (
                     <tr key={project.name}>
-                      <td className={styles.primaryName}>{project.name}</td>
+                      <td className={styles.primaryName}>
+                        <Link
+                          href={`/projects/${project.slug}`}
+                          className={styles.projectLink}
+                        >
+                          {project.name}
+                        </Link>
+                      </td>
                       <td className={styles.secondaryText}>
                         {project.environment}
                       </td>

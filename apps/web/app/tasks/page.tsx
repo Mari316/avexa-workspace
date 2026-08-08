@@ -3,27 +3,19 @@
 import { FormEvent, useState } from "react";
 
 import AppLayout from "../../components/layout/AppLayout";
+import {
+  clientProjects,
+  tasks as initialTasks,
+  type Task,
+  type TaskPriority,
+  type TaskStatus,
+} from "../../lib/mockData";
 
 import styles from "./page.module.css";
-
-type TaskPriority = "High" | "Medium" | "Low";
-
-type TaskStatus = "To Do" | "In Progress" | "Review" | "Blocked" | "Done";
 
 type TaskClient = "Pax8" | "Cybertek" | "OrangeHRM" | "Lemonade";
 
 type TaskAssignee = "Mari" | "Chris" | "Alex";
-
-type Task = {
-  id: string;
-  title: string;
-  project: string;
-  client: string;
-  assignee: string;
-  dueDate: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-};
 
 type TaskFormData = {
   title: string;
@@ -51,66 +43,6 @@ const clientOptions: TaskClient[] = [
 ];
 
 const assigneeOptions: TaskAssignee[] = ["Mari", "Chris", "Alex"];
-
-const clientProjects: Record<TaskClient, string[]> = {
-  Pax8: ["Account Management", "Partner Portal", "Public API"],
-  OrangeHRM: ["OrangeHRM Automation"],
-  Lemonade: ["Lemonade Web"],
-  Cybertek: ["Cybertek Automation"],
-};
-
-const initialTasks: Task[] = [
-  {
-    id: "task-1",
-    title: "Finish regression coverage",
-    project: "Account Management",
-    client: "Pax8",
-    assignee: "Mari",
-    dueDate: "Aug 8",
-    priority: "High",
-    status: "In Progress",
-  },
-  {
-    id: "task-2",
-    title: "Review automation PR",
-    project: "Partner Portal",
-    client: "Pax8",
-    assignee: "Chris",
-    dueDate: "Aug 9",
-    priority: "Medium",
-    status: "Review",
-  },
-  {
-    id: "task-3",
-    title: "Update Playwright tests",
-    project: "OrangeHRM Automation",
-    client: "OrangeHRM",
-    assignee: "Mari",
-    dueDate: "Aug 12",
-    priority: "Medium",
-    status: "To Do",
-  },
-  {
-    id: "task-4",
-    title: "Investigate login bug",
-    project: "Lemonade Web",
-    client: "Lemonade",
-    assignee: "Alex",
-    dueDate: "Aug 7",
-    priority: "High",
-    status: "Blocked",
-  },
-  {
-    id: "task-5",
-    title: "Validate API regression",
-    project: "Public API",
-    client: "Pax8",
-    assignee: "Mari",
-    dueDate: "Aug 15",
-    priority: "Low",
-    status: "To Do",
-  },
-];
 
 const emptyForm: TaskFormData = {
   title: "",
