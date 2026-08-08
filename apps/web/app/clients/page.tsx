@@ -1,20 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import AppLayout from "../../components/layout/AppLayout";
+import {
+  clients as initialClients,
+  getClientSlug,
+  type Client,
+  type ClientStatus,
+} from "../../lib/mockData";
 
 import styles from "./page.module.css";
-
-type ClientStatus = "Active" | "On Hold";
-
-type Client = {
-  name: string;
-  projectCount: number;
-  primaryContact: string;
-  contactEmail?: string;
-  status: ClientStatus;
-};
 
 type ClientFormData = {
   name: string;
@@ -27,33 +24,6 @@ type FormErrors = {
   name?: string;
   primaryContact?: string;
 };
-
-const initialClients: Client[] = [
-  {
-    name: "Pax8",
-    projectCount: 3,
-    primaryContact: "Mitchell Lubbers",
-    status: "Active",
-  },
-  {
-    name: "Cybertek",
-    projectCount: 1,
-    primaryContact: "John Smith",
-    status: "Active",
-  },
-  {
-    name: "OrangeHRM",
-    projectCount: 1,
-    primaryContact: "Sarah Lee",
-    status: "Active",
-  },
-  {
-    name: "Lemonade",
-    projectCount: 1,
-    primaryContact: "Alex Brown",
-    status: "On Hold",
-  },
-];
 
 const emptyForm: ClientFormData = {
   name: "",
@@ -110,14 +80,12 @@ export default function ClientsPage() {
 
     const newClient: Client = {
       name: form.name.trim(),
+      slug: getClientSlug(form.name.trim()),
       projectCount: 0,
       primaryContact: form.primaryContact.trim(),
+      contactEmail: form.contactEmail.trim(),
       status: form.status,
     };
-
-    if (form.contactEmail.trim()) {
-      newClient.contactEmail = form.contactEmail.trim();
-    }
 
     setClients((currentClients) => [...currentClients, newClient]);
     closeModal();
@@ -176,9 +144,12 @@ export default function ClientsPage() {
                     </span>
                   </td>
                   <td>
-                    <button type="button" className={styles.viewAction}>
+                    <Link
+                      href={`/clients/${client.slug}`}
+                      className={styles.viewAction}
+                    >
                       View →
-                    </button>
+                    </Link>
                   </td>
                 </tr>
               ))}
