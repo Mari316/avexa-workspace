@@ -112,7 +112,14 @@ export default function ProjectDetailsPage() {
                 <tbody>
                   {projectTasks.map((task) => (
                     <tr key={task.id}>
-                      <td className={styles.primaryName}>{task.title}</td>
+                      <td className={styles.primaryName}>
+                        <Link
+                          href={`/tasks/${task.slug}`}
+                          className={styles.taskLink}
+                        >
+                          {task.title}
+                        </Link>
+                      </td>
                       <td className={styles.secondaryText}>{task.assignee}</td>
                       <td className={styles.secondaryText}>{task.dueDate}</td>
                       <td>

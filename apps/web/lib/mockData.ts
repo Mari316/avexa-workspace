@@ -26,6 +26,7 @@ export type TaskStatus = "To Do" | "In Progress" | "Review" | "Blocked" | "Done"
 
 export type Task = {
   id: string;
+  slug: string;
   title: string;
   project: string;
   client: string;
@@ -128,6 +129,7 @@ export const projects: Project[] = [
 export const tasks: Task[] = [
   {
     id: "task-1",
+    slug: "finish-regression-coverage",
     title: "Finish regression coverage",
     project: "Account Management",
     client: "Pax8",
@@ -138,6 +140,7 @@ export const tasks: Task[] = [
   },
   {
     id: "task-2",
+    slug: "review-automation-pr",
     title: "Review automation PR",
     project: "Partner Portal",
     client: "Pax8",
@@ -148,6 +151,7 @@ export const tasks: Task[] = [
   },
   {
     id: "task-3",
+    slug: "update-playwright-tests",
     title: "Update Playwright tests",
     project: "OrangeHRM Automation",
     client: "OrangeHRM",
@@ -158,6 +162,7 @@ export const tasks: Task[] = [
   },
   {
     id: "task-4",
+    slug: "investigate-login-bug",
     title: "Investigate login bug",
     project: "Lemonade Web",
     client: "Lemonade",
@@ -168,6 +173,7 @@ export const tasks: Task[] = [
   },
   {
     id: "task-5",
+    slug: "validate-api-regression",
     title: "Validate API regression",
     project: "Public API",
     client: "Pax8",
@@ -250,12 +256,24 @@ export function getProjectSlug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, "-");
 }
 
+export function getTaskSlug(title: string): string {
+  return title.toLowerCase().replace(/\s+/g, "-");
+}
+
 export function getClientBySlug(slug: string): Client | undefined {
   return clients.find((client) => client.slug === slug);
 }
 
 export function getProjectBySlug(slug: string): Project | undefined {
   return projects.find((project) => project.slug === slug);
+}
+
+export function getProjectByName(name: string): Project | undefined {
+  return projects.find((project) => project.name === name);
+}
+
+export function getTaskBySlug(slug: string): Task | undefined {
+  return tasks.find((task) => task.slug === slug);
 }
 
 export function getProjectsByClient(clientName: string): Project[] {

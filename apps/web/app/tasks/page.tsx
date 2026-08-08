@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import AppLayout from "../../components/layout/AppLayout";
 import {
   clientProjects,
+  getTaskSlug,
   tasks as initialTasks,
   type Task,
   type TaskPriority,
@@ -138,6 +140,7 @@ export default function TasksPage() {
 
     const newTask: Task = {
       id: `task-${Date.now()}`,
+      slug: getTaskSlug(form.title.trim()),
       title: form.title.trim(),
       project: form.project,
       client: form.client,
@@ -208,13 +211,13 @@ export default function TasksPage() {
                     </span>
                   </td>
                   <td>
-                    <button
-                      type="button"
+                    <Link
+                      href={`/tasks/${task.slug}`}
                       className={styles.viewAction}
                       aria-label={`View ${task.title}`}
                     >
                       View →
-                    </button>
+                    </Link>
                   </td>
                 </tr>
               ))}
