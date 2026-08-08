@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 
-import AppLayout from "../../components/layout/AppLayout";
+import { useAppData } from "../../context/AppDataContext";
 import {
-  clients as initialClients,
+  formatContactName,
   getClientSlug,
+  resolveClientPrimaryContact,
   type Client,
   type ClientStatus,
 } from "../../lib/mockData";
@@ -15,20 +16,18 @@ import styles from "./page.module.css";
 
 type ClientFormData = {
   name: string;
-  primaryContact: string;
-  contactEmail: string;
+  primaryContactSlug: string;
   status: ClientStatus;
 };
 
 type FormErrors = {
   name?: string;
-  primaryContact?: string;
+  primaryContactSlug?: string;
 };
 
 const emptyForm: ClientFormData = {
   name: "",
-  primaryContact: "",
-  contactEmail: "",
+  primaryContactSlug: "",
   status: "Active",
 };
 
@@ -36,34 +35,78 @@ function formatProjects(count: number): string {
   return count === 1 ? "1 project" : `${count} projects`;
 }
 
-function validateForm(form: ClientFormData): FormErrors {
+function validateForm(
+  form: ClientFormData,
+  mode: "add" | "edit",
+  hasClientContacts: boolean,
+): FormErrors {
   const errors: FormErrors = {};
 
   if (!form.name.trim()) {
     errors.name = "Client name is required.";
   }
 
-  if (!form.primaryContact.trim()) {
-    errors.primaryContact = "Primary contact is required.";
+  if (mode === "edit" && hasClientContacts && !form.primaryContactSlug) {
+    errors.primaryContactSlug = "Primary contact is required.";
   }
 
   return errors;
 }
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const { clients, contacts, projects, addClient, updateClient } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"add" | "edit">("add");
+  const [editingClientSlug, setEditingClientSlug] = useState<string | null>(null);
   const [form, setForm] = useState<ClientFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  function openModal() {
+  const editingClient = editingClientSlug
+    ? clients.find((client) => client.slug === editingClientSlug)
+    : undefined;
+
+  const clientContactsForEdit = useMemo(() => {
+    if (!editingClient) {
+      return [];
+    }
+
+    return contacts.filter((contact) => contact.client === editingClient.name);
+  }, [contacts, editingClient]);
+
+  const projectCountByClient = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    for (const project of projects) {
+      counts.set(project.client, (counts.get(project.client) ?? 0) + 1);
+    }
+
+    return counts;
+  }, [projects]);
+
+  function openAddModal() {
+    setFormMode("add");
+    setEditingClientSlug(null);
     setForm(emptyForm);
+    setErrors({});
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(client: Client) {
+    setFormMode("edit");
+    setEditingClientSlug(client.slug);
+    setForm({
+      name: client.name,
+      primaryContactSlug: client.primaryContactSlug,
+      status: client.status,
+    });
     setErrors({});
     setIsModalOpen(true);
   }
 
   function closeModal() {
     setIsModalOpen(false);
+    setFormMode("add");
+    setEditingClientSlug(null);
     setForm(emptyForm);
     setErrors({});
   }
@@ -71,28 +114,48 @@ export default function ClientsPage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const validationErrors = validateForm(form);
+    const validationErrors = validateForm(
+      form,
+      formMode,
+      clientContactsForEdit.length > 0,
+    );
     setErrors(validationErrors);
 
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
-    const newClient: Client = {
-      name: form.name.trim(),
-      slug: getClientSlug(form.name.trim()),
-      projectCount: 0,
-      primaryContact: form.primaryContact.trim(),
-      contactEmail: form.contactEmail.trim(),
-      status: form.status,
-    };
+    if (formMode === "add") {
+      const newClient: Client = {
+        name: form.name.trim(),
+        slug: getClientSlug(form.name.trim()),
+        projectCount: 0,
+        primaryContactSlug: "",
+        status: form.status,
+      };
 
-    setClients((currentClients) => [...currentClients, newClient]);
+      addClient(newClient);
+    } else if (editingClientSlug && editingClient) {
+      const updatedClient: Client = {
+        name: form.name.trim(),
+        slug: editingClient.slug,
+        projectCount: editingClient.projectCount,
+        primaryContactSlug: form.primaryContactSlug,
+        status: form.status,
+      };
+
+      updateClient(editingClientSlug, updatedClient);
+    }
+
     closeModal();
   }
 
+  const selectedPrimaryContact = clientContactsForEdit.find(
+    (contact) => contact.slug === form.primaryContactSlug,
+  );
+
   return (
-    <AppLayout>
+    <>
       <main className={styles.container}>
         <div className={styles.header}>
           <div>
@@ -105,7 +168,7 @@ export default function ClientsPage() {
           <button
             type="button"
             className={styles.addButton}
-            onClick={openModal}
+            onClick={openAddModal}
           >
             + Add Client
           </button>
@@ -123,36 +186,57 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody>
-              {clients.map((client) => (
-                <tr key={client.name}>
-                  <td className={styles.clientName}>{client.name}</td>
-                  <td className={styles.secondaryText}>
-                    {formatProjects(client.projectCount)}
-                  </td>
-                  <td className={styles.secondaryText}>
-                    {client.primaryContact}
-                  </td>
-                  <td>
-                    <span
-                      className={`${styles.badge} ${
-                        client.status === "Active"
-                          ? styles.badgeActive
-                          : styles.badgeOnHold
-                      }`}
-                    >
-                      {client.status}
-                    </span>
-                  </td>
-                  <td>
-                    <Link
-                      href={`/clients/${client.slug}`}
-                      className={styles.viewAction}
-                    >
-                      View →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+              {clients.map((client) => {
+                const primaryContact = resolveClientPrimaryContact(
+                  client,
+                  contacts,
+                );
+
+                return (
+                  <tr key={client.slug}>
+                    <td className={styles.clientName}>{client.name}</td>
+                    <td className={styles.secondaryText}>
+                      {formatProjects(projectCountByClient.get(client.name) ?? 0)}
+                    </td>
+                    <td className={styles.secondaryText}>
+                      {primaryContact
+                        ? formatContactName(
+                            primaryContact.firstName,
+                            primaryContact.lastName,
+                          )
+                        : "—"}
+                    </td>
+                    <td>
+                      <span
+                        className={`${styles.badge} ${
+                          client.status === "Active"
+                            ? styles.badgeActive
+                            : styles.badgeOnHold
+                        }`}
+                      >
+                        {client.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className={styles.actionButtons}>
+                        <Link
+                          href={`/clients/${client.slug}`}
+                          className={styles.actionButton}
+                        >
+                          View →
+                        </Link>
+                        <button
+                          type="button"
+                          className={styles.actionButton}
+                          onClick={() => openEditModal(client)}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -163,11 +247,11 @@ export default function ClientsPage() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="add-client-title"
+            aria-labelledby="client-form-title"
             className={styles.modal}
           >
-            <h2 id="add-client-title" className={styles.modalTitle}>
-              Add Client
+            <h2 id="client-form-title" className={styles.modalTitle}>
+              {formMode === "add" ? "Add Client" : "Edit Client"}
             </h2>
 
             <form className={styles.form} onSubmit={handleSubmit}>
@@ -196,50 +280,62 @@ export default function ClientsPage() {
                 )}
               </div>
 
-              <div className={styles.field}>
-                <label htmlFor="primary-contact" className={styles.label}>
-                  Primary Contact *
-                </label>
-                <input
-                  id="primary-contact"
-                  type="text"
-                  className={styles.input}
-                  value={form.primaryContact}
-                  onChange={(event) =>
-                    setForm((currentForm) => ({
-                      ...currentForm,
-                      primaryContact: event.target.value,
-                    }))
-                  }
-                  aria-invalid={Boolean(errors.primaryContact)}
-                  aria-describedby={
-                    errors.primaryContact ? "primary-contact-error" : undefined
-                  }
-                />
-                {errors.primaryContact && (
-                  <p id="primary-contact-error" className={styles.error}>
-                    {errors.primaryContact}
-                  </p>
-                )}
-              </div>
+              {formMode === "edit" && (
+                <>
+                  <div className={styles.field}>
+                    <label htmlFor="primary-contact" className={styles.label}>
+                      Primary Contact *
+                    </label>
+                    <select
+                      id="primary-contact"
+                      className={styles.select}
+                      value={form.primaryContactSlug}
+                      onChange={(event) =>
+                        setForm((currentForm) => ({
+                          ...currentForm,
+                          primaryContactSlug: event.target.value,
+                        }))
+                      }
+                      aria-invalid={Boolean(errors.primaryContactSlug)}
+                      aria-describedby={
+                        errors.primaryContactSlug
+                          ? "primary-contact-error"
+                          : undefined
+                      }
+                    >
+                      <option value="">Select a contact</option>
+                      {clientContactsForEdit.map((contact) => (
+                        <option key={contact.slug} value={contact.slug}>
+                          {formatContactName(
+                            contact.firstName,
+                            contact.lastName,
+                          )}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.primaryContactSlug && (
+                      <p id="primary-contact-error" className={styles.error}>
+                        {errors.primaryContactSlug}
+                      </p>
+                    )}
+                    {clientContactsForEdit.length === 0 && (
+                      <p className={styles.helperText}>
+                        Add contacts for this client before selecting a primary
+                        contact.
+                      </p>
+                    )}
+                  </div>
 
-              <div className={styles.field}>
-                <label htmlFor="contact-email" className={styles.label}>
-                  Contact Email
-                </label>
-                <input
-                  id="contact-email"
-                  type="email"
-                  className={styles.input}
-                  value={form.contactEmail}
-                  onChange={(event) =>
-                    setForm((currentForm) => ({
-                      ...currentForm,
-                      contactEmail: event.target.value,
-                    }))
-                  }
-                />
-              </div>
+                  {selectedPrimaryContact && (
+                    <div className={styles.field}>
+                      <span className={styles.label}>Contact Email</span>
+                      <p className={styles.readOnlyValue}>
+                        {selectedPrimaryContact.email}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
 
               <div className={styles.field}>
                 <label htmlFor="client-status" className={styles.label}>
@@ -270,13 +366,13 @@ export default function ClientsPage() {
                   Cancel
                 </button>
                 <button type="submit" className={styles.submitButton}>
-                  Add Client
+                  {formMode === "add" ? "Add Client" : "Save Changes"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </AppLayout>
+    </>
   );
 }

@@ -1,17 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import AppLayout from "../../components/layout/AppLayout";
+import { useAppData } from "../../context/AppDataContext";
+import { consumeDeleteSuccessMessage } from "../../lib/deletedTasks";
+import { notifyTaskCreated } from "../../lib/mockNotifications";
 import {
-  consumeDeleteSuccessMessage,
-  filterDeletedTasks,
-} from "../../lib/deletedTasks";
-import {
-  clientProjects,
   getTaskSlug,
-  tasks as initialTasks,
   type Task,
   type TaskPriority,
   type TaskStatus,
@@ -19,9 +15,31 @@ import {
 
 import styles from "./page.module.css";
 
-type TaskClient = "Pax8" | "Cybertek" | "OrangeHRM" | "Lemonade";
-
 type TaskAssignee = "Mari" | "Chris" | "Alex";
+
+type TaskFilters = {
+  search: string;
+  client: string;
+  priority: string;
+  status: string;
+};
+
+const defaultFilters: TaskFilters = {
+  search: "",
+  client: "",
+  priority: "",
+  status: "",
+};
+
+const priorityOptions: TaskPriority[] = ["Low", "Medium", "High"];
+
+const statusOptions: TaskStatus[] = [
+  "To Do",
+  "In Progress",
+  "Review",
+  "Blocked",
+  "Done",
+];
 
 type TaskFormData = {
   title: string;
@@ -41,14 +59,49 @@ type FormErrors = {
   dueDate?: string;
 };
 
-const clientOptions: TaskClient[] = [
-  "Pax8",
-  "Cybertek",
-  "OrangeHRM",
-  "Lemonade",
-];
-
 const assigneeOptions: TaskAssignee[] = ["Mari", "Chris", "Alex"];
+
+function filterTasks(tasks: Task[], filters: TaskFilters): Task[] {
+  const query = filters.search.trim().toLowerCase();
+
+  return tasks.filter((task) => {
+    if (filters.client && task.client !== filters.client) {
+      return false;
+    }
+
+    if (filters.priority && task.priority !== filters.priority) {
+      return false;
+    }
+
+    if (filters.status && task.status !== filters.status) {
+      return false;
+    }
+
+    if (query) {
+      const matchesSearch = [task.title, task.project, task.client, task.assignee]
+        .some((value) => value.toLowerCase().includes(query));
+
+      if (!matchesSearch) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+function formatResultCount(count: number): string {
+  return count === 1 ? "1 task" : `${count} tasks`;
+}
+
+function hasActiveFilters(filters: TaskFilters): boolean {
+  return Boolean(
+    filters.search.trim() ||
+      filters.client ||
+      filters.priority ||
+      filters.status,
+  );
+}
 
 const emptyForm: TaskFormData = {
   title: "",
@@ -111,10 +164,10 @@ function validateForm(form: TaskFormData): FormErrors {
 }
 
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(() =>
-    filterDeletedTasks(initialTasks),
-  );
+  const { clients, tasks, addTask, getProjectByName, getProjectNamesByClient } =
+    useAppData();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<TaskFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -124,7 +177,6 @@ export default function TasksPage() {
       return;
     }
 
-    setTasks(filterDeletedTasks(initialTasks));
     setShowSuccessBanner(true);
 
     const timer = window.setTimeout(() => {
@@ -134,9 +186,20 @@ export default function TasksPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  const filteredTasks = useMemo(
+    () => filterTasks(tasks, filters),
+    [tasks, filters],
+  );
+
+  const filtersActive = hasActiveFilters(filters);
+
   const projectOptions = form.client
-    ? clientProjects[form.client as TaskClient] ?? []
+    ? getProjectNamesByClient(form.client)
     : [];
+
+  function clearFilters() {
+    setFilters(defaultFilters);
+  }
 
   function openModal() {
     setForm(emptyForm);
@@ -160,24 +223,27 @@ export default function TasksPage() {
       return;
     }
 
+    const selectedProject = getProjectByName(form.project);
+
     const newTask: Task = {
       id: `task-${Date.now()}`,
       slug: getTaskSlug(form.title.trim()),
       title: form.title.trim(),
       project: form.project,
-      client: form.client,
+      client: selectedProject?.client ?? form.client,
       assignee: form.assignee,
       dueDate: formatDueDate(form.dueDate),
       priority: form.priority,
       status: form.status,
     };
 
-    setTasks((currentTasks) => [...currentTasks, newTask]);
+    addTask(newTask);
+    notifyTaskCreated(newTask.title, newTask.slug);
     closeModal();
   }
 
   return (
-    <AppLayout>
+    <>
       <main className={styles.container}>
         <div className={styles.header}>
           <div>
@@ -202,55 +268,152 @@ export default function TasksPage() {
           </div>
         )}
 
-        <div className={styles.card}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Task</th>
-                <th>Project</th>
-                <th>Client</th>
-                <th>Assignee</th>
-                <th>Due Date</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((task) => (
-                <tr key={task.id}>
-                  <td className={styles.taskTitle}>{task.title}</td>
-                  <td className={styles.secondaryText}>{task.project}</td>
-                  <td className={styles.secondaryText}>{task.client}</td>
-                  <td className={styles.secondaryText}>{task.assignee}</td>
-                  <td className={styles.secondaryText}>{task.dueDate}</td>
-                  <td>
-                    <span
-                      className={`${styles.badge} ${priorityBadgeClass[task.priority]}`}
-                    >
-                      {task.priority}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      className={`${styles.badge} ${statusBadgeClass[task.status]}`}
-                    >
-                      {task.status}
-                    </span>
-                  </td>
-                  <td>
-                    <Link
-                      href={`/tasks/${task.slug}`}
-                      className={styles.viewAction}
-                      aria-label={`View ${task.title}`}
-                    >
-                      View →
-                    </Link>
-                  </td>
-                </tr>
+        <div className={styles.controls}>
+          <div className={styles.controlsRow}>
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder="Search tasks..."
+              value={filters.search}
+              onChange={(event) =>
+                setFilters((currentFilters) => ({
+                  ...currentFilters,
+                  search: event.target.value,
+                }))
+              }
+              aria-label="Search tasks"
+            />
+
+            <select
+              className={styles.filterSelect}
+              value={filters.client}
+              onChange={(event) =>
+                setFilters((currentFilters) => ({
+                  ...currentFilters,
+                  client: event.target.value,
+                }))
+              }
+              aria-label="Filter by client"
+            >
+              <option value="">All Clients</option>
+              {clients.map((client) => (
+                <option key={client.slug} value={client.name}>
+                  {client.name}
+                </option>
               ))}
-            </tbody>
-          </table>
+            </select>
+
+            <select
+              className={styles.filterSelect}
+              value={filters.priority}
+              onChange={(event) =>
+                setFilters((currentFilters) => ({
+                  ...currentFilters,
+                  priority: event.target.value,
+                }))
+              }
+              aria-label="Filter by priority"
+            >
+              <option value="">All Priorities</option>
+              {priorityOptions.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className={styles.filterSelect}
+              value={filters.status}
+              onChange={(event) =>
+                setFilters((currentFilters) => ({
+                  ...currentFilters,
+                  status: event.target.value,
+                }))
+              }
+              aria-label="Filter by status"
+            >
+              <option value="">All Statuses</option>
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              className={styles.clearButton}
+              onClick={clearFilters}
+              disabled={!filtersActive}
+            >
+              Clear Filters
+            </button>
+          </div>
+
+          <p className={styles.resultCount}>
+            {formatResultCount(filteredTasks.length)}
+          </p>
+        </div>
+
+        <div className={styles.card}>
+          {filteredTasks.length === 0 ? (
+            <div className={styles.emptyState}>
+              <p className={styles.emptyTitle}>No tasks found</p>
+              <p className={styles.emptyHint}>
+                Try changing your search or filters.
+              </p>
+            </div>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Project</th>
+                  <th>Client</th>
+                  <th>Assignee</th>
+                  <th>Due Date</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTasks.map((task) => (
+                  <tr key={task.id}>
+                    <td className={styles.taskTitle}>{task.title}</td>
+                    <td className={styles.secondaryText}>{task.project}</td>
+                    <td className={styles.secondaryText}>{task.client}</td>
+                    <td className={styles.secondaryText}>{task.assignee}</td>
+                    <td className={styles.secondaryText}>{task.dueDate}</td>
+                    <td>
+                      <span
+                        className={`${styles.badge} ${priorityBadgeClass[task.priority]}`}
+                      >
+                        {task.priority}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`${styles.badge} ${statusBadgeClass[task.status]}`}
+                      >
+                        {task.status}
+                      </span>
+                    </td>
+                    <td>
+                      <Link
+                        href={`/tasks/${task.slug}`}
+                        className={styles.viewAction}
+                        aria-label={`View ${task.title}`}
+                      >
+                        View →
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </main>
 
@@ -313,9 +476,9 @@ export default function TasksPage() {
                   }
                 >
                   <option value="">Select a client</option>
-                  {clientOptions.map((client) => (
-                    <option key={client} value={client}>
-                      {client}
+                  {clients.map((client) => (
+                    <option key={client.slug} value={client.name}>
+                      {client.name}
                     </option>
                   ))}
                 </select>
@@ -484,6 +647,7 @@ export default function TasksPage() {
           </div>
         </div>
       )}
-    </AppLayout>
+
+    </>
   );
 }

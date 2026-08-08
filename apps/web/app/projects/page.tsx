@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import AppLayout from "../../components/layout/AppLayout";
+import { useAppData } from "../../context/AppDataContext";
 import {
   getProjectSlug,
-  projects as initialProjects,
   type Project,
   type ProjectStatus,
 } from "../../lib/mockData";
@@ -20,7 +19,7 @@ type ProjectEnvironment =
   | "Production"
   | "Demo";
 
-type ProjectClient = "Pax8" | "Cybertek" | "OrangeHRM" | "Lemonade";
+type ProjectClient = string;
 type ProjectFormData = {
   name: string;
   client: string;
@@ -33,13 +32,6 @@ type FormErrors = {
   client?: string;
   environment?: string;
 };
-
-const clientOptions: ProjectClient[] = [
-  "Pax8",
-  "Cybertek",
-  "OrangeHRM",
-  "Lemonade",
-];
 
 const environmentOptions: ProjectEnvironment[] = [
   "Development",
@@ -75,7 +67,8 @@ function validateForm(form: ProjectFormData): FormErrors {
 }
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const { clients, projects, tasks, addProject } = useAppData();
+  const clientOptions = clients.map((client) => client.name);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ProjectFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -111,12 +104,12 @@ export default function ProjectsPage() {
       status: form.status,
     };
 
-    setProjects((currentProjects) => [...currentProjects, newProject]);
+    addProject(newProject);
     closeModal();
   }
 
   return (
-    <AppLayout>
+    <>
       <main className={styles.container}>
         <div className={styles.header}>
           <div>
@@ -153,7 +146,12 @@ export default function ProjectsPage() {
                   <td className={styles.projectName}>{project.name}</td>
                   <td className={styles.secondaryText}>{project.client}</td>
                   <td className={styles.secondaryText}>{project.environment}</td>
-                  <td className={styles.secondaryText}>{project.taskCount}</td>
+                  <td className={styles.secondaryText}>
+                    {
+                      tasks.filter((task) => task.project === project.name)
+                        .length
+                    }
+                  </td>
                   <td>
                     <span
                       className={`${styles.badge} ${
@@ -323,6 +321,7 @@ export default function ProjectsPage() {
           </div>
         </div>
       )}
-    </AppLayout>
+
+    </>
   );
 }

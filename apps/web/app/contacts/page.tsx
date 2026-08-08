@@ -1,24 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import AppLayout from "../../components/layout/AppLayout";
+import { useAppData } from "../../context/AppDataContext";
+import {
+  formatContactName,
+  getContactSlug,
+  type Contact,
+  type ContactStatus,
+} from "../../lib/mockData";
 
 import styles from "./page.module.css";
-
-type ContactStatus = "Active" | "Inactive";
-
-type ContactClient = "Pax8" | "Cybertek" | "OrangeHRM" | "Lemonade";
-
-type Contact = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  client: string;
-  email: string;
-  role: string;
-  status: ContactStatus;
-};
 
 type ContactFormData = {
   firstName: string;
@@ -37,70 +30,6 @@ type FormErrors = {
   role?: string;
 };
 
-const clientOptions: ContactClient[] = [
-  "Pax8",
-  "Cybertek",
-  "OrangeHRM",
-  "Lemonade",
-];
-
-const initialContacts: Contact[] = [
-  {
-    id: "contact-1",
-    firstName: "Mitchell",
-    lastName: "Lubbers",
-    client: "Pax8",
-    email: "mitchell.lubbers@pax8.com",
-    role: "QA Director",
-    status: "Active",
-  },
-  {
-    id: "contact-2",
-    firstName: "Jennifer",
-    lastName: "Walsh",
-    client: "Pax8",
-    email: "jennifer.walsh@pax8.com",
-    role: "Partner Success Manager",
-    status: "Active",
-  },
-  {
-    id: "contact-3",
-    firstName: "John",
-    lastName: "Smith",
-    client: "Cybertek",
-    email: "john.smith@cybertek.com",
-    role: "Engineering Lead",
-    status: "Active",
-  },
-  {
-    id: "contact-4",
-    firstName: "Emily",
-    lastName: "Chen",
-    client: "Cybertek",
-    email: "emily.chen@cybertek.com",
-    role: "Automation Engineer",
-    status: "Active",
-  },
-  {
-    id: "contact-5",
-    firstName: "Sarah",
-    lastName: "Lee",
-    client: "OrangeHRM",
-    email: "sarah.lee@orangehrm.com",
-    role: "Product Owner",
-    status: "Active",
-  },
-  {
-    id: "contact-6",
-    firstName: "Alex",
-    lastName: "Brown",
-    client: "Lemonade",
-    email: "alex.brown@lemonade.com",
-    role: "QA Manager",
-    status: "Inactive",
-  },
-];
-
 const emptyForm: ContactFormData = {
   firstName: "",
   lastName: "",
@@ -109,10 +38,6 @@ const emptyForm: ContactFormData = {
   role: "",
   status: "Active",
 };
-
-function formatContactName(firstName: string, lastName: string): string {
-  return `${firstName} ${lastName}`;
-}
 
 function validateForm(form: ContactFormData): FormErrors {
   const errors: FormErrors = {};
@@ -141,19 +66,43 @@ function validateForm(form: ContactFormData): FormErrors {
 }
 
 export default function ContactsPage() {
-  const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+  const { clients, contacts, addContact, updateContact } = useAppData();
+  const clientOptions = clients.map((client) => client.name);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"add" | "edit">("add");
+  const [editingContactSlug, setEditingContactSlug] = useState<string | null>(
+    null,
+  );
   const [form, setForm] = useState<ContactFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  function openModal() {
+  function openAddModal() {
+    setFormMode("add");
+    setEditingContactSlug(null);
     setForm(emptyForm);
+    setErrors({});
+    setIsModalOpen(true);
+  }
+
+  function openEditModal(contact: Contact) {
+    setFormMode("edit");
+    setEditingContactSlug(contact.slug);
+    setForm({
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      client: contact.client,
+      email: contact.email,
+      role: contact.role,
+      status: contact.status,
+    });
     setErrors({});
     setIsModalOpen(true);
   }
 
   function closeModal() {
     setIsModalOpen(false);
+    setFormMode("add");
+    setEditingContactSlug(null);
     setForm(emptyForm);
     setErrors({});
   }
@@ -168,22 +117,46 @@ export default function ContactsPage() {
       return;
     }
 
-    const newContact: Contact = {
-      id: `contact-${Date.now()}`,
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
-      client: form.client,
-      email: form.email.trim(),
-      role: form.role.trim(),
-      status: form.status,
-    };
+    if (formMode === "add") {
+      const newContact: Contact = {
+        id: `contact-${Date.now()}`,
+        slug: getContactSlug(form.firstName.trim(), form.lastName.trim()),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        client: form.client,
+        email: form.email.trim(),
+        role: form.role.trim(),
+        status: form.status,
+      };
 
-    setContacts((currentContacts) => [...currentContacts, newContact]);
+      addContact(newContact);
+    } else if (editingContactSlug) {
+      const existingContact = contacts.find(
+        (contact) => contact.slug === editingContactSlug,
+      );
+
+      if (!existingContact) {
+        return;
+      }
+
+      const updatedContact: Contact = {
+        ...existingContact,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        client: form.client,
+        email: form.email.trim(),
+        role: form.role.trim(),
+        status: form.status,
+      };
+
+      updateContact(editingContactSlug, updatedContact);
+    }
+
     closeModal();
   }
 
   return (
-    <AppLayout>
+    <>
       <main className={styles.container}>
         <div className={styles.header}>
           <div>
@@ -196,7 +169,7 @@ export default function ContactsPage() {
           <button
             type="button"
             className={styles.addButton}
-            onClick={openModal}
+            onClick={openAddModal}
           >
             + Add Contact
           </button>
@@ -235,13 +208,21 @@ export default function ContactsPage() {
                     </span>
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className={styles.viewAction}
-                      aria-label={`View ${formatContactName(contact.firstName, contact.lastName)}`}
-                    >
-                      View →
-                    </button>
+                    <div className={styles.actionButtons}>
+                      <Link
+                        href={`/contacts/${contact.slug}`}
+                        className={styles.actionButton}
+                      >
+                        View →
+                      </Link>
+                      <button
+                        type="button"
+                        className={styles.actionButton}
+                        onClick={() => openEditModal(contact)}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -255,11 +236,11 @@ export default function ContactsPage() {
           <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby="add-contact-title"
+            aria-labelledby="contact-form-title"
             className={styles.modal}
           >
-            <h2 id="add-contact-title" className={styles.modalTitle}>
-              Add Contact
+            <h2 id="contact-form-title" className={styles.modalTitle}>
+              {formMode === "add" ? "Add Contact" : "Edit Contact"}
             </h2>
 
             <form className={styles.form} onSubmit={handleSubmit}>
@@ -433,13 +414,13 @@ export default function ContactsPage() {
                   Cancel
                 </button>
                 <button type="submit" className={styles.submitButton}>
-                  Add Contact
+                  {formMode === "add" ? "Add Contact" : "Save Changes"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </AppLayout>
+    </>
   );
 }

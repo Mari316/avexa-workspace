@@ -116,6 +116,27 @@
   color: #2563eb;
 }
 
+.actionButtons {
+  display: flex;
+  gap: 16px;
+}
+
+.actionButton {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.actionButton:hover {
+  color: #2563eb;
+}
+
 .backdrop {
   position: fixed;
   inset: 0;

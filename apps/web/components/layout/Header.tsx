@@ -1,5 +1,7 @@
-import { Bell, Settings, UserCircle } from "lucide-react";
+import NotificationsPanel from "../common/NotificationsPanel";
 import SearchBar from "../common/SearchBar";
+import SettingsLink from "../common/SettingsLink";
+import UserMenu from "../common/UserMenu";
 import styles from "./Header.module.css";
 
 export default function Header() {
@@ -10,18 +12,9 @@ export default function Header() {
       <SearchBar />
 
       <div className={styles.right}>
-        <button className={styles.iconButton} aria-label="Notifications">
-          <Bell size={20} />
-        </button>
-
-        <button className={styles.iconButton} aria-label="Settings">
-          <Settings size={20} />
-        </button>
-
-        <div className={styles.profile}>
-          <UserCircle size={28} />
-          <span>Mari</span>
-        </div>
+        <NotificationsPanel />
+        <SettingsLink />
+        <UserMenu />
       </div>
     </header>
   );

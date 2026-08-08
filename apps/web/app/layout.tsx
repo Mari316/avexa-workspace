@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import AppLayout from "../components/layout/AppLayout";
+import AppProviders from "../components/providers/AppProviders";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -23,9 +25,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-     <body className={geistSans.className}>
-  {children}
-</body>
+      <body className={geistSans.className}>
+        <AppProviders>
+          <AppLayout>{children}</AppLayout>
+        </AppProviders>
+      </body>
     </html>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { memo } from "react";
 
 import styles from "./Sidebar.module.css";
 
@@ -31,7 +32,7 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function Sidebar() {
+function Sidebar() {
   const pathname = usePathname();
 
   return (
@@ -58,3 +59,5 @@ export default function Sidebar() {
     </aside>
   );
 }
+
+export default memo(Sidebar);

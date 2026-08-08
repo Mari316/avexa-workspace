@@ -1,0 +1,159 @@
+.wrapper {
+  position: relative;
+  z-index: 201;
+}
+
+.iconButton {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: #f1f5f9;
+}
+
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 200;
+  width: 360px;
+  max-height: 420px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+
+.dropdownHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.dropdownTitle {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.markAllButton {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.markAllButton:hover {
+  color: #1d4ed8;
+}
+
+.list {
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.notificationItem {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.notificationItem:hover {
+  background: #f8fafc;
+}
+
+.notificationItem:not(:last-child) {
+  border-bottom: 1px solid #edf2f7;
+}
+
+.notificationItemUnread {
+  background: #f8fafc;
+}
+
+.notificationItemUnread:hover {
+  background: #f1f5f9;
+}
+
+.unreadDot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+.unreadDotHidden {
+  visibility: hidden;
+}
+
+.notificationContent {
+  min-width: 0;
+  flex: 1;
+}
+
+.notificationTitle {
+  margin: 0 0 4px;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.notificationTitleUnread {
+  font-weight: 600;
+}
+
+.notificationDescription {
+  margin: 0 0 6px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.notificationTime {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 12px;
+}

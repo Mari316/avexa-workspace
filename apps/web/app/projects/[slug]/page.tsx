@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import AppLayout from "../../../components/layout/AppLayout";
+import { useAppData } from "../../../context/AppDataContext";
 import {
-  getClientSlug,
-  getProjectBySlug,
-  getTasksByProject,
   type TaskPriority,
   type TaskStatus,
 } from "../../../lib/mockData";
@@ -31,29 +28,30 @@ const statusBadgeClass: Record<TaskStatus, string> = {
 export default function ProjectDetailsPage() {
   const params = useParams();
   const slug = typeof params.slug === "string" ? params.slug : "";
+  const { clients, getProjectBySlug, getTasksByProject } = useAppData();
   const project = getProjectBySlug(slug);
+  const client = project
+    ? clients.find((currentClient) => currentClient.name === project.client)
+    : undefined;
 
   if (!project) {
     return (
-      <AppLayout>
-        <main className={styles.container}>
-          <Link href="/projects" className={styles.backLink}>
-            ← Back to Projects
-          </Link>
-          <h1 className={styles.notFoundTitle}>Project not found</h1>
-          <p className={styles.notFoundMessage}>
-            The project you&apos;re looking for doesn&apos;t exist.
-          </p>
-        </main>
-      </AppLayout>
+      <main className={styles.container}>
+        <Link href="/projects" className={styles.backLink}>
+          ← Back to Projects
+        </Link>
+        <h1 className={styles.notFoundTitle}>Project not found</h1>
+        <p className={styles.notFoundMessage}>
+          The project you&apos;re looking for doesn&apos;t exist.
+        </p>
+      </main>
     );
   }
 
   const projectTasks = getTasksByProject(project.name);
 
   return (
-    <AppLayout>
-      <main className={styles.container}>
+    <main className={styles.container}>
         <Link href="/projects" className={styles.backLink}>
           ← Back to Projects
         </Link>
@@ -75,12 +73,16 @@ export default function ProjectDetailsPage() {
           <div className={styles.meta}>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Client</span>
-              <Link
-                href={`/clients/${getClientSlug(project.client)}`}
-                className={styles.clientLink}
-              >
-                {project.client}
-              </Link>
+              {client ? (
+                <Link
+                  href={`/clients/${client.slug}`}
+                  className={styles.clientLink}
+                >
+                  {project.client}
+                </Link>
+              ) : (
+                <span className={styles.metaValue}>{project.client}</span>
+              )}
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Environment</span>
@@ -88,7 +90,7 @@ export default function ProjectDetailsPage() {
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Task Count</span>
-              <span className={styles.metaValue}>{project.taskCount}</span>
+              <span className={styles.metaValue}>{projectTasks.length}</span>
             </div>
           </div>
         </div>
@@ -144,6 +146,5 @@ export default function ProjectDetailsPage() {
           </div>
         </section>
       </main>
-    </AppLayout>
   );
 }

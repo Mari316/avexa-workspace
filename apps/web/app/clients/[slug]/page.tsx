@@ -3,12 +3,10 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import AppLayout from "../../../components/layout/AppLayout";
+import { useAppData } from "../../../context/AppDataContext";
 import {
   formatContactName,
-  getClientBySlug,
-  getContactsByClient,
-  getProjectsByClient,
+  resolveClientPrimaryContact,
 } from "../../../lib/mockData";
 
 import styles from "./page.module.css";
@@ -16,30 +14,35 @@ import styles from "./page.module.css";
 export default function ClientDetailsPage() {
   const params = useParams();
   const slug = typeof params.slug === "string" ? params.slug : "";
+  const {
+    contacts,
+    getClientBySlug,
+    getProjectsByClient,
+    getContactsByClient,
+    tasks,
+  } = useAppData();
   const client = getClientBySlug(slug);
 
   if (!client) {
     return (
-      <AppLayout>
-        <main className={styles.container}>
-          <Link href="/clients" className={styles.backLink}>
-            ← Back to Clients
-          </Link>
-          <h1 className={styles.notFoundTitle}>Client not found</h1>
-          <p className={styles.notFoundMessage}>
-            The client you&apos;re looking for doesn&apos;t exist.
-          </p>
-        </main>
-      </AppLayout>
+      <main className={styles.container}>
+        <Link href="/clients" className={styles.backLink}>
+          ← Back to Clients
+        </Link>
+        <h1 className={styles.notFoundTitle}>Client not found</h1>
+        <p className={styles.notFoundMessage}>
+          The client you&apos;re looking for doesn&apos;t exist.
+        </p>
+      </main>
     );
   }
 
   const clientProjects = getProjectsByClient(client.name);
   const clientContacts = getContactsByClient(client.name);
+  const primaryContact = resolveClientPrimaryContact(client, contacts);
 
   return (
-    <AppLayout>
-      <main className={styles.container}>
+    <main className={styles.container}>
         <Link href="/clients" className={styles.backLink}>
           ← Back to Clients
         </Link>
@@ -61,11 +64,20 @@ export default function ClientDetailsPage() {
           <div className={styles.meta}>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Primary Contact</span>
-              <span className={styles.metaValue}>{client.primaryContact}</span>
+              <span className={styles.metaValue}>
+                {primaryContact
+                  ? formatContactName(
+                      primaryContact.firstName,
+                      primaryContact.lastName,
+                    )
+                  : "—"}
+              </span>
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Contact Email</span>
-              <span className={styles.metaValue}>{client.contactEmail}</span>
+              <span className={styles.metaValue}>
+                {primaryContact?.email ?? "—"}
+              </span>
             </div>
           </div>
         </div>
@@ -100,7 +112,10 @@ export default function ClientDetailsPage() {
                         {project.environment}
                       </td>
                       <td className={styles.secondaryText}>
-                        {project.taskCount}
+                        {
+                          tasks.filter((task) => task.project === project.name)
+                            .length
+                        }
                       </td>
                       <td>
                         <span
@@ -166,6 +181,5 @@ export default function ClientDetailsPage() {
           </div>
         </section>
       </main>
-    </AppLayout>
   );
 }

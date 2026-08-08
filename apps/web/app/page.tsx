@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 
 import UpcomingDeadlines from "../components/dashboard/UpcomingDeadlines";
-import AppLayout from "../components/layout/AppLayout";
 import StatsCard from "../components/dashboard/StatsCard";
 import RecentTasks from "../components/dashboard/RecentTasks";
 
@@ -14,8 +13,7 @@ import styles from "./page.module.css";
 
 export default function Home() {
   return (
-    <AppLayout>
-      <main className={styles.container}>
+    <main className={styles.container}>
         <h1 className={styles.title}>Welcome back, Mari 👋</h1>
 
         <p className={styles.subtitle}>
@@ -57,6 +55,5 @@ export default function Home() {
   <UpcomingDeadlines />
 </div>
       </main>
-    </AppLayout>
   );
 }

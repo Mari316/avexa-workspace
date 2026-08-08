@@ -4,8 +4,7 @@ export type Client = {
   name: string;
   slug: string;
   projectCount: number;
-  primaryContact: string;
-  contactEmail: string;
+  primaryContactSlug: string;
   status: ClientStatus;
 };
 
@@ -40,6 +39,7 @@ export type ContactStatus = "Active" | "Inactive";
 
 export type Contact = {
   id: string;
+  slug: string;
   firstName: string;
   lastName: string;
   client: string;
@@ -53,32 +53,28 @@ export const clients: Client[] = [
     name: "Pax8",
     slug: "pax8",
     projectCount: 3,
-    primaryContact: "Mitchell Lubbers",
-    contactEmail: "mitchell.lubbers@pax8.com",
+    primaryContactSlug: "mitchell-lubbers",
     status: "Active",
   },
   {
     name: "Cybertek",
     slug: "cybertek",
     projectCount: 1,
-    primaryContact: "John Smith",
-    contactEmail: "john.smith@cybertek.com",
+    primaryContactSlug: "john-smith",
     status: "Active",
   },
   {
     name: "OrangeHRM",
     slug: "orangehrm",
     projectCount: 1,
-    primaryContact: "Sarah Lee",
-    contactEmail: "sarah.lee@orangehrm.com",
+    primaryContactSlug: "sarah-lee",
     status: "Active",
   },
   {
     name: "Lemonade",
     slug: "lemonade",
     projectCount: 1,
-    primaryContact: "Alex Brown",
-    contactEmail: "alex.brown@lemonade.com",
+    primaryContactSlug: "alex-brown",
     status: "On Hold",
   },
 ];
@@ -194,6 +190,7 @@ export const clientProjects: Record<string, string[]> = {
 export const contacts: Contact[] = [
   {
     id: "contact-1",
+    slug: "mitchell-lubbers",
     firstName: "Mitchell",
     lastName: "Lubbers",
     client: "Pax8",
@@ -203,6 +200,7 @@ export const contacts: Contact[] = [
   },
   {
     id: "contact-2",
+    slug: "jennifer-walsh",
     firstName: "Jennifer",
     lastName: "Walsh",
     client: "Pax8",
@@ -212,6 +210,7 @@ export const contacts: Contact[] = [
   },
   {
     id: "contact-3",
+    slug: "john-smith",
     firstName: "John",
     lastName: "Smith",
     client: "Cybertek",
@@ -221,6 +220,7 @@ export const contacts: Contact[] = [
   },
   {
     id: "contact-4",
+    slug: "emily-chen",
     firstName: "Emily",
     lastName: "Chen",
     client: "Cybertek",
@@ -230,6 +230,7 @@ export const contacts: Contact[] = [
   },
   {
     id: "contact-5",
+    slug: "sarah-lee",
     firstName: "Sarah",
     lastName: "Lee",
     client: "OrangeHRM",
@@ -239,6 +240,7 @@ export const contacts: Contact[] = [
   },
   {
     id: "contact-6",
+    slug: "alex-brown",
     firstName: "Alex",
     lastName: "Brown",
     client: "Lemonade",
@@ -249,7 +251,7 @@ export const contacts: Contact[] = [
 ];
 
 export function getClientSlug(name: string): string {
-  return name.toLowerCase();
+  return name.toLowerCase().replace(/\s+/g, "-");
 }
 
 export function getProjectSlug(name: string): string {
@@ -290,4 +292,19 @@ export function getTasksByProject(projectName: string): Task[] {
 
 export function formatContactName(firstName: string, lastName: string): string {
   return `${firstName} ${lastName}`;
+}
+
+export function getContactSlug(firstName: string, lastName: string): string {
+  return `${firstName}-${lastName}`.toLowerCase().replace(/\s+/g, "-");
+}
+
+export function resolveClientPrimaryContact(
+  client: Client,
+  contacts: Contact[],
+): Contact | undefined {
+  if (!client.primaryContactSlug) {
+    return undefined;
+  }
+
+  return contacts.find((contact) => contact.slug === client.primaryContactSlug);
 }

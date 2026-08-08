@@ -4,13 +4,10 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import AppLayout from "../../../components/layout/AppLayout";
-import { markTaskDeleted, isTaskDeleted } from "../../../lib/deletedTasks";
+import { useAppData } from "../../../context/AppDataContext";
+import { markTaskDeleteSuccess } from "../../../lib/deletedTasks";
+import { notifyTaskUpdated } from "../../../lib/mockNotifications";
 import {
-  getClientSlug,
-  getProjectByName,
-  getTaskBySlug,
-  projects,
   type Task,
   type TaskPriority,
   type TaskStatus,
@@ -113,13 +110,18 @@ export default function TaskDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const slug = typeof params.slug === "string" ? params.slug : "";
-  const [task, setTask] = useState<Task | undefined>(() => {
-    if (isTaskDeleted(slug)) {
-      return undefined;
-    }
-
-    return getTaskBySlug(slug);
-  });
+  const {
+    clients,
+    projects,
+    getTaskBySlug,
+    getProjectByName,
+    updateTask,
+    deleteTask,
+  } = useAppData();
+  const task = getTaskBySlug(slug);
+  const client = task
+    ? clients.find((currentClient) => currentClient.name === task.client)
+    : undefined;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -163,17 +165,28 @@ export default function TaskDetailsPage() {
     }
 
     const selectedProject = getProjectByName(form.project);
+    const previousStatus = task.status;
+    const updatedTitle = form.title.trim();
+    const updatedStatus = form.status;
 
-    setTask({
+    const updatedTask: Task = {
       ...task,
-      title: form.title.trim(),
+      title: updatedTitle,
       project: form.project,
       client: selectedProject?.client ?? task.client,
       assignee: form.assignee,
       dueDate: formatDueDate(form.dueDate),
       priority: form.priority,
-      status: form.status,
-    });
+      status: updatedStatus,
+    };
+
+    updateTask(task.slug, updatedTask);
+    notifyTaskUpdated(
+      updatedTitle,
+      task.slug,
+      previousStatus,
+      updatedStatus,
+    );
     closeModal();
   }
 
@@ -191,30 +204,29 @@ export default function TaskDetailsPage() {
     }
 
     setIsDeleting(true);
-    markTaskDeleted(task.slug);
+    deleteTask(task.slug);
+    markTaskDeleteSuccess();
     router.push("/tasks");
   }
 
   if (!task) {
     return (
-      <AppLayout>
-        <main className={styles.container}>
-          <Link href="/tasks" className={styles.backLink}>
-            ← Back to Tasks
-          </Link>
-          <h1 className={styles.notFoundTitle}>Task not found</h1>
-          <p className={styles.notFoundMessage}>
-            The task you&apos;re looking for doesn&apos;t exist.
-          </p>
-        </main>
-      </AppLayout>
+      <main className={styles.container}>
+        <Link href="/tasks" className={styles.backLink}>
+          ← Back to Tasks
+        </Link>
+        <h1 className={styles.notFoundTitle}>Task not found</h1>
+        <p className={styles.notFoundMessage}>
+          The task you&apos;re looking for doesn&apos;t exist.
+        </p>
+      </main>
     );
   }
 
   const project = getProjectByName(task.project);
 
   return (
-    <AppLayout>
+    <>
       <main className={styles.container}>
         <Link href="/tasks" className={styles.backLink}>
           ← Back to Tasks
@@ -265,12 +277,16 @@ export default function TaskDetailsPage() {
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Client</span>
-              <Link
-                href={`/clients/${getClientSlug(task.client)}`}
-                className={styles.navLink}
-              >
-                {task.client}
-              </Link>
+              {client ? (
+                <Link
+                  href={`/clients/${client.slug}`}
+                  className={styles.navLink}
+                >
+                  {task.client}
+                </Link>
+              ) : (
+                <span className={styles.metaValue}>{task.client}</span>
+              )}
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Assignee</span>
@@ -533,6 +549,7 @@ export default function TaskDetailsPage() {
           </div>
         </div>
       )}
-    </AppLayout>
+
+    </>
   );
 }
