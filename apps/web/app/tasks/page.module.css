@@ -39,6 +39,16 @@
   background: #1d4ed8;
 }
 
+.successBanner {
+  margin-bottom: 24px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .card {
   background: white;
   border-radius: 18px;

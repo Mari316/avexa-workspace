@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import AppLayout from "../../../components/layout/AppLayout";
+import { markTaskDeleted, isTaskDeleted } from "../../../lib/deletedTasks";
 import {
   getClientSlug,
   getProjectByName,
@@ -110,9 +111,18 @@ function taskToFormData(task: Task): EditTaskFormData {
 
 export default function TaskDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = typeof params.slug === "string" ? params.slug : "";
-  const [task, setTask] = useState<Task | undefined>(() => getTaskBySlug(slug));
+  const [task, setTask] = useState<Task | undefined>(() => {
+    if (isTaskDeleted(slug)) {
+      return undefined;
+    }
+
+    return getTaskBySlug(slug);
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [form, setForm] = useState<EditTaskFormData>({
     title: "",
     project: "",
@@ -167,6 +177,24 @@ export default function TaskDetailsPage() {
     closeModal();
   }
 
+  function closeDeleteModal() {
+    if (isDeleting) {
+      return;
+    }
+
+    setIsDeleteModalOpen(false);
+  }
+
+  function handleConfirmDelete() {
+    if (!task || isDeleting) {
+      return;
+    }
+
+    setIsDeleting(true);
+    markTaskDeleted(task.slug);
+    router.push("/tasks");
+  }
+
   if (!task) {
     return (
       <AppLayout>
@@ -203,13 +231,22 @@ export default function TaskDetailsPage() {
               </span>
             </div>
 
-            <button
-              type="button"
-              className={styles.editButton}
-              onClick={openModal}
-            >
-              Edit Task
-            </button>
+            <div className={styles.actionButtons}>
+              <button
+                type="button"
+                className={styles.editButton}
+                onClick={openModal}
+              >
+                Edit Task
+              </button>
+              <button
+                type="button"
+                className={styles.deleteButton}
+                onClick={() => setIsDeleteModalOpen(true)}
+              >
+                Delete Task
+              </button>
+            </div>
           </div>
 
           <div className={styles.meta}>
@@ -453,6 +490,46 @@ export default function TaskDetailsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isDeleteModalOpen && (
+        <div className={styles.backdrop}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-task-title"
+            className={styles.modal}
+          >
+            <h2 id="delete-task-title" className={styles.modalTitle}>
+              Delete Task
+            </h2>
+
+            <p className={styles.confirmMessage}>
+              Are you sure you want to delete &quot;{task.title}&quot;?
+              <br />
+              This action cannot be undone.
+            </p>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={closeDeleteModal}
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.deleteConfirmButton}
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                Delete Task
+              </button>
+            </div>
           </div>
         </div>
       )}

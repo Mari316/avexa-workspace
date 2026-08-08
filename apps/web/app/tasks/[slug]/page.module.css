@@ -52,6 +52,29 @@
   background: #1d4ed8;
 }
 
+.actionButtons {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.deleteButton {
+  padding: 12px 20px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: white;
+  color: #b91c1c;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.deleteButton:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
 .title {
   font-size: 36px;
   font-weight: 700;
@@ -266,4 +289,33 @@
 
 .submitButton:hover {
   background: #1d4ed8;
+}
+
+.confirmMessage {
+  margin-bottom: 24px;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.deleteConfirmButton {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 10px;
+  background: #dc2626;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.deleteConfirmButton:hover {
+  background: #b91c1c;
+}
+
+.deleteConfirmButton:disabled,
+.cancelButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

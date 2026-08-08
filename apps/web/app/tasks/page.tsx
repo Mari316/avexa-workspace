@@ -1,9 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import AppLayout from "../../components/layout/AppLayout";
+import {
+  consumeDeleteSuccessMessage,
+  filterDeletedTasks,
+} from "../../lib/deletedTasks";
 import {
   clientProjects,
   getTaskSlug,
@@ -107,10 +111,28 @@ function validateForm(form: TaskFormData): FormErrors {
 }
 
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>(() =>
+    filterDeletedTasks(initialTasks),
+  );
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<TaskFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  useEffect(() => {
+    if (!consumeDeleteSuccessMessage()) {
+      return;
+    }
+
+    setTasks(filterDeletedTasks(initialTasks));
+    setShowSuccessBanner(true);
+
+    const timer = window.setTimeout(() => {
+      setShowSuccessBanner(false);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const projectOptions = form.client
     ? clientProjects[form.client as TaskClient] ?? []
@@ -173,6 +195,12 @@ export default function TasksPage() {
             + Add Task
           </button>
         </div>
+
+        {showSuccessBanner && (
+          <div className={styles.successBanner} role="status">
+            Task deleted successfully
+          </div>
+        )}
 
         <div className={styles.card}>
           <table className={styles.table}>
