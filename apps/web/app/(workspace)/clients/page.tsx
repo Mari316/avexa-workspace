@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
-import { useAppData, type ClientView } from "../../context/AppDataContext";
-import { ApiError } from "../../lib/api/request";
+import { useAppData, type ClientView } from "../../../context/AppDataContext";
+import { ApiError } from "../../../lib/api/request";
 import {
   formatContactName,
   resolveClientPrimaryContact,
   type ClientStatus,
-} from "../../lib/mockData";
+} from "../../../lib/mockData";
 
 import styles from "./page.module.css";
 

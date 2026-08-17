@@ -10,8 +10,13 @@ import {
   listTasks,
 } from "../../../../server/tasks/task.service";
 import {
+  UnauthorizedError,
+  requireUser,
+} from "../../../../server/auth/require-user";
+import {
   errorResponse,
   internalErrorResponse,
+  unauthorizedResponse,
   validationErrorResponse,
 } from "../../../../server/http/errors";
 
@@ -20,15 +25,30 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
   try {
+    await requireUser();
     const rows = await listTasks();
 
     return NextResponse.json({ data: rows.map(toTaskDTO) });
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     return internalErrorResponse("GET /api/v1/tasks", error);
   }
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  try {
+    await requireUser();
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
+    return internalErrorResponse("requireUser", error);
+  }
+
   let body: unknown;
 
   try {
@@ -51,6 +71,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 201, headers: { Location: `/api/v1/tasks/${row.slug}` } },
     );
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     if (error instanceof TaskTitleNotSluggableError) {
       return errorResponse(
         400,

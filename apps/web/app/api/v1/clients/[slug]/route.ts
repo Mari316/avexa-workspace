@@ -12,8 +12,13 @@ import {
   updateClientBySlug,
 } from "../../../../../server/clients/client.service";
 import {
+  UnauthorizedError,
+  requireUser,
+} from "../../../../../server/auth/require-user";
+import {
   errorResponse,
   internalErrorResponse,
+  unauthorizedResponse,
   validationErrorResponse,
 } from "../../../../../server/http/errors";
 
@@ -37,10 +42,15 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
   }
 
   try {
+    await requireUser();
     const row = await getClientBySlug(slug);
 
     return row ? NextResponse.json({ data: toClientDTO(row) }) : clientNotFound();
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     return internalErrorResponse(`GET /api/v1/clients/${slug}`, error);
   }
 }
@@ -50,6 +60,16 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
 
   if (!clientSlugParamSchema.safeParse(slug).success) {
     return clientNotFound();
+  }
+
+  try {
+    await requireUser();
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
+    return internalErrorResponse("requireUser", error);
   }
 
   let body: unknown;
@@ -71,6 +91,10 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
 
     return row ? NextResponse.json({ data: toClientDTO(row) }) : clientNotFound();
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     if (error instanceof PrimaryContactNotFoundError) {
       return errorResponse(
         400,

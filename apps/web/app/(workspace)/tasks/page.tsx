@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { useAppData, type TaskView } from "../../context/AppDataContext";
-import { ApiError } from "../../lib/api/request";
-import { consumeDeleteSuccessMessage } from "../../lib/deletedTasks";
-import { notifyTaskCreated } from "../../lib/mockNotifications";
+import { useAppData, type TaskView } from "../../../context/AppDataContext";
+import { ApiError } from "../../../lib/api/request";
+import { consumeDeleteSuccessMessage } from "../../../lib/deletedTasks";
+import { notifyTaskCreated } from "../../../lib/mockNotifications";
 import {
   formatTaskDueDate,
   type TaskPriority,
   type TaskStatus,
-} from "../../lib/mockData";
+} from "../../../lib/mockData";
 
 import styles from "./page.module.css";
 

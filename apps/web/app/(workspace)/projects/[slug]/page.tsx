@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { useAppData } from "../../../context/AppDataContext";
+import { useAppData } from "../../../../context/AppDataContext";
 import {
   formatTaskDueDate,
   type TaskPriority,
   type TaskStatus,
-} from "../../../lib/mockData";
+} from "../../../../lib/mockData";
 
 import styles from "./page.module.css";
 

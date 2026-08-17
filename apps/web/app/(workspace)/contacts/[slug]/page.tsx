@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { useAppData } from "../../../context/AppDataContext";
-import { formatContactName } from "../../../lib/mockData";
+import { useAppData } from "../../../../context/AppDataContext";
+import { formatContactName } from "../../../../lib/mockData";
 
 import styles from "./page.module.css";
 

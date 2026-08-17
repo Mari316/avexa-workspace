@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import { useAppData } from "../../context/AppDataContext";
-import { ApiError } from "../../lib/api/request";
-import { type ProjectStatus } from "../../lib/mockData";
+import { useAppData } from "../../../context/AppDataContext";
+import { ApiError } from "../../../lib/api/request";
+import { type ProjectStatus } from "../../../lib/mockData";
 
 import styles from "./page.module.css";
 

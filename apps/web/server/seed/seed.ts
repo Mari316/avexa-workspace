@@ -1,17 +1,21 @@
 import { and, eq, sql } from "drizzle-orm";
+import { hashPassword } from "better-auth/crypto";
 
 import { closeDatabase, db } from "../db";
 import {
+  account,
   clients,
   contacts,
   projects,
   tasks,
+  user,
   type NewClientRow,
   type NewContactRow,
   type NewProjectRow,
   type NewTaskRow,
 } from "../db/schema";
 import {
+  DEMO_USER_PASSWORD,
   seedClientId,
   seedClients,
   seedContactId,
@@ -20,6 +24,7 @@ import {
   seedProjects,
   seedTaskId,
   seedTasks,
+  seedUsers,
   type SeedClient,
   type SeedContact,
   type SeedProject,
@@ -195,12 +200,54 @@ export async function seedTasksTable(): Promise<void> {
   }
 }
 
+/**
+ * Creates Better Auth credential users using the library's own password hasher.
+ * Skips users that already exist so repeat seeds do not churn hashes/timestamps.
+ * Public sign-up remains disabled in auth config — only this seed creates users.
+ */
+export async function seedAuthUsers(): Promise<void> {
+  for (const seedUser of seedUsers) {
+    const [existing] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.email, seedUser.email))
+      .limit(1);
+
+    if (existing) {
+      continue;
+    }
+
+    const passwordHash = await hashPassword(DEMO_USER_PASSWORD);
+    const now = new Date();
+
+    await db.insert(user).values({
+      id: seedUser.id,
+      name: seedUser.name,
+      email: seedUser.email,
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await db.insert(account).values({
+      id: `seed-account-${seedUser.id}`,
+      accountId: seedUser.id,
+      providerId: "credential",
+      userId: seedUser.id,
+      password: passwordHash,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
 async function main(): Promise<void> {
   await seedClientsTable();
   await seedContactsTable();
   await seedPrimaryContacts();
   await seedProjectsTable();
   await seedTasksTable();
+  await seedAuthUsers();
 
   const [clientTotals] = await db
     .select({
@@ -217,13 +264,22 @@ async function main(): Promise<void> {
   const [taskTotals] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(tasks);
+  const [userTotals] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(user);
+  const [credentialTotals] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(account)
+    .where(eq(account.providerId, "credential"));
 
   console.log(
     `Seed complete. clients=${clientTotals?.total ?? 0} ` +
       `(with primary contact: ${clientTotals?.withPrimaryContact ?? 0}), ` +
       `contacts=${contactTotals?.total ?? 0}, ` +
       `projects=${projectTotals?.total ?? 0}, ` +
-      `tasks=${taskTotals?.total ?? 0}.`,
+      `tasks=${taskTotals?.total ?? 0}, ` +
+      `users=${userTotals?.total ?? 0} ` +
+      `(credential accounts: ${credentialTotals?.total ?? 0}).`,
   );
 }
 

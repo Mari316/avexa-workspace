@@ -17,6 +17,7 @@ coverage
 playwright/test-results/
 playwright/playwright-report/
 playwright/blob-report/
+playwright/.auth/
 
 # Turbo
 .turbo

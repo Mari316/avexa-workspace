@@ -2,77 +2,34 @@
 
 import Link from "next/link";
 import { UserCircle } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
+import { authClient } from "../../lib/auth-client";
 import {
   openHeaderDropdown,
   subscribeHeaderDropdown,
 } from "../../lib/headerDropdowns";
-import {
-  getUserFullName,
-  getUserProfile,
-  subscribeUserProfile,
-  updateUserProfile,
-  type UserProfile,
-} from "../../lib/userProfile";
 
 import styles from "./UserMenu.module.css";
 
-type ProfileFormData = {
-  firstName: string;
-  lastName: string;
-  email: string;
-};
+function displayFirstName(name: string): string {
+  const first = name.trim().split(/\s+/)[0];
 
-type ProfileFormErrors = {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-};
-
-function profileToFormData(profile: UserProfile): ProfileFormData {
-  return {
-    firstName: profile.firstName,
-    lastName: profile.lastName,
-    email: profile.email,
-  };
-}
-
-function validateProfileForm(form: ProfileFormData): ProfileFormErrors {
-  const errors: ProfileFormErrors = {};
-
-  if (!form.firstName.trim()) {
-    errors.firstName = "First name is required.";
-  }
-
-  if (!form.lastName.trim()) {
-    errors.lastName = "Last name is required.";
-  }
-
-  if (!form.email.trim()) {
-    errors.email = "Email is required.";
-  }
-
-  return errors;
+  return first || name;
 }
 
 export default function UserMenu() {
+  const router = useRouter();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const { data: session, isPending } = authClient.useSession();
   const [isOpen, setIsOpen] = useState(false);
-  const [profile, setProfile] = useState<UserProfile>(() => getUserProfile());
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
-  const [form, setForm] = useState<ProfileFormData>(() =>
-    profileToFormData(getUserProfile()),
-  );
-  const [errors, setErrors] = useState<ProfileFormErrors>({});
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
-  useEffect(() => {
-    return subscribeUserProfile(() => {
-      setProfile(getUserProfile());
-    });
-  }, []);
+  const user = session?.user;
+  const firstName = user ? displayFirstName(user.name) : "…";
 
   useEffect(() => {
     return subscribeHeaderDropdown((opened) => {
@@ -112,17 +69,12 @@ export default function UserMenu() {
   }
 
   function openProfileModal() {
-    setForm(profileToFormData(getUserProfile()));
-    setErrors({});
-    setIsEditingProfile(false);
     setIsProfileModalOpen(true);
     setIsOpen(false);
   }
 
   function closeProfileModal() {
     setIsProfileModalOpen(false);
-    setIsEditingProfile(false);
-    setErrors({});
   }
 
   function openSignOutModal() {
@@ -131,32 +83,28 @@ export default function UserMenu() {
   }
 
   function closeSignOutModal() {
-    setIsSignOutModalOpen(false);
-  }
-
-  function handleEditProfile() {
-    setForm(profileToFormData(getUserProfile()));
-    setErrors({});
-    setIsEditingProfile(true);
-  }
-
-  function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const validationErrors = validateProfileForm(form);
-    setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length > 0) {
+    if (isSigningOut) {
       return;
     }
 
-    updateUserProfile({
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-    });
-    setIsEditingProfile(false);
-    setErrors({});
+    setIsSignOutModalOpen(false);
+  }
+
+  async function handleConfirmSignOut() {
+    if (isSigningOut) {
+      return;
+    }
+
+    setIsSigningOut(true);
+
+    try {
+      await authClient.signOut();
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setIsSigningOut(false);
+      setIsSignOutModalOpen(false);
+    }
   }
 
   return (
@@ -169,9 +117,10 @@ export default function UserMenu() {
           aria-expanded={isOpen}
           aria-controls="header-user-menu"
           onClick={toggleMenu}
+          disabled={isPending && !user}
         >
           <UserCircle size={28} />
-          <span>{profile.firstName}</span>
+          <span>{firstName}</span>
         </button>
 
         {isOpen && (
@@ -215,7 +164,7 @@ export default function UserMenu() {
         )}
       </div>
 
-      {isProfileModalOpen && (
+      {isProfileModalOpen && user && (
         <div
           className={styles.backdrop}
           role="presentation"
@@ -232,125 +181,26 @@ export default function UserMenu() {
               Profile
             </h2>
 
-            {isEditingProfile ? (
-              <form className={styles.form} onSubmit={handleProfileSubmit}>
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="profile-first-name">
-                    First Name
-                  </label>
-                  <input
-                    id="profile-first-name"
-                    className={styles.input}
-                    value={form.firstName}
-                    aria-invalid={Boolean(errors.firstName)}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        firstName: event.target.value,
-                      }))
-                    }
-                  />
-                  {errors.firstName && (
-                    <span className={styles.error}>{errors.firstName}</span>
-                  )}
-                </div>
+            <div className={styles.profileDetails}>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>Name</span>
+                <span className={styles.profileValue}>{user.name}</span>
+              </div>
+              <div className={styles.profileField}>
+                <span className={styles.profileLabel}>Email</span>
+                <span className={styles.profileValue}>{user.email}</span>
+              </div>
+            </div>
 
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="profile-last-name">
-                    Last Name
-                  </label>
-                  <input
-                    id="profile-last-name"
-                    className={styles.input}
-                    value={form.lastName}
-                    aria-invalid={Boolean(errors.lastName)}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        lastName: event.target.value,
-                      }))
-                    }
-                  />
-                  {errors.lastName && (
-                    <span className={styles.error}>{errors.lastName}</span>
-                  )}
-                </div>
-
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="profile-email">
-                    Email
-                  </label>
-                  <input
-                    id="profile-email"
-                    type="email"
-                    className={styles.input}
-                    value={form.email}
-                    aria-invalid={Boolean(errors.email)}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        email: event.target.value,
-                      }))
-                    }
-                  />
-                  {errors.email && (
-                    <span className={styles.error}>{errors.email}</span>
-                  )}
-                </div>
-
-                <div className={styles.modalActions}>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={() => {
-                      setIsEditingProfile(false);
-                      setErrors({});
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className={styles.primaryButton}>
-                    Save
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <>
-                <div className={styles.profileDetails}>
-                  <div className={styles.profileField}>
-                    <span className={styles.profileLabel}>Name</span>
-                    <span className={styles.profileValue}>
-                      {getUserFullName()}
-                    </span>
-                  </div>
-                  <div className={styles.profileField}>
-                    <span className={styles.profileLabel}>Role</span>
-                    <span className={styles.profileValue}>{profile.role}</span>
-                  </div>
-                  <div className={styles.profileField}>
-                    <span className={styles.profileLabel}>Email</span>
-                    <span className={styles.profileValue}>{profile.email}</span>
-                  </div>
-                </div>
-
-                <div className={styles.modalActions}>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={closeProfileModal}
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.primaryButton}
-                    onClick={handleEditProfile}
-                  >
-                    Edit Profile
-                  </button>
-                </div>
-              </>
-            )}
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={closeProfileModal}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -372,15 +222,25 @@ export default function UserMenu() {
               Sign out
             </h2>
             <p className={styles.message}>
-              Sign out is not available until authentication is implemented.
+              Sign out of Avexa Workspace? You will need to sign in again to
+              continue.
             </p>
             <div className={styles.modalActions}>
               <button
                 type="button"
-                className={styles.primaryButton}
+                className={styles.secondaryButton}
                 onClick={closeSignOutModal}
+                disabled={isSigningOut}
               >
-                Close
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={handleConfirmSignOut}
+                disabled={isSigningOut}
+              >
+                {isSigningOut ? "Signing out…" : "Sign out"}
               </button>
             </div>
           </div>

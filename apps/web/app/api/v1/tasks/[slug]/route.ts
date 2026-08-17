@@ -12,8 +12,13 @@ import {
   updateTaskBySlug,
 } from "../../../../../server/tasks/task.service";
 import {
+  UnauthorizedError,
+  requireUser,
+} from "../../../../../server/auth/require-user";
+import {
   errorResponse,
   internalErrorResponse,
+  unauthorizedResponse,
   validationErrorResponse,
 } from "../../../../../server/http/errors";
 
@@ -39,10 +44,15 @@ export async function GET(
   }
 
   try {
+    await requireUser();
     const row = await getTaskBySlug(slug);
 
     return row ? NextResponse.json({ data: toTaskDTO(row) }) : taskNotFound();
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     return internalErrorResponse(`GET /api/v1/tasks/${slug}`, error);
   }
 }
@@ -55,6 +65,16 @@ export async function PATCH(
 
   if (!taskSlugParamSchema.safeParse(slug).success) {
     return taskNotFound();
+  }
+
+  try {
+    await requireUser();
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
+    return internalErrorResponse("requireUser", error);
   }
 
   let body: unknown;
@@ -76,6 +96,10 @@ export async function PATCH(
 
     return row ? NextResponse.json({ data: toTaskDTO(row) }) : taskNotFound();
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     if (error instanceof ProjectNotFoundError) {
       return errorResponse(400, "PROJECT_NOT_FOUND", "The selected project does not exist.");
     }
@@ -95,10 +119,15 @@ export async function DELETE(
   }
 
   try {
+    await requireUser();
     const deleted = await deleteTaskBySlug(slug);
 
     return deleted ? new NextResponse(null, { status: 204 }) : taskNotFound();
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     return internalErrorResponse(`DELETE /api/v1/tasks/${slug}`, error);
   }
 }

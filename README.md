@@ -38,6 +38,20 @@ npm run db:seed
 `npm run db:seed` is idempotent: it upserts on the client slug, so running it once or
 five times leaves the same four clients with the same ids.
 
+### Authentication (Better Auth)
+
+Local demo users (shared development password `Password123!` — never a production secret):
+
+| Email | Name |
+| --- | --- |
+| `mari@avexa.test` | Mari Astapova |
+| `chris@avexa.test` | Chris Miller |
+| `alex@avexa.test` | Alex Brown |
+
+Required env vars (see `apps/web/.env.example`): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
+
+Public sign-up is disabled. Users are created only by the seed script using Better Auth's password hasher.
+
 ### Layout
 
 | Path | Responsibility |

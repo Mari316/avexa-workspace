@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { memo } from "react";
 
+import { authClient } from "../../lib/auth-client";
+
 import styles from "./Sidebar.module.css";
 
 type NavItem = {
@@ -34,6 +36,8 @@ function isActive(pathname: string, href: string): boolean {
 
 function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = authClient.useSession();
+  const footerName = session?.user?.name ?? "…";
 
   return (
     <aside className={styles.sidebar}>
@@ -55,7 +59,7 @@ function Sidebar() {
 
       <div className={styles.spacer} />
 
-      <div className={styles.footer}>Mari Astapova</div>
+      <div className={styles.footer}>{footerName}</div>
     </aside>
   );
 }

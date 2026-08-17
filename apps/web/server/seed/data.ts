@@ -93,6 +93,37 @@ export const SEED_TASK_IDS: Record<string, string> = {
   "validate-api-regression": "50505050-5050-4050-8050-505050505050",
 };
 
+/**
+ * Development-only shared password for the three seeded Better Auth users.
+ * Never stored in the database — seed hashes it with Better Auth's hasher.
+ * Documented for local demo / Playwright login only.
+ */
+export const DEMO_USER_PASSWORD = "Password123!";
+
+export type SeedUser = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+export const seedUsers: SeedUser[] = [
+  {
+    id: "seed-user-mari-000000000001",
+    name: "Mari Astapova",
+    email: "mari@avexa.test",
+  },
+  {
+    id: "seed-user-chris-000000000002",
+    name: "Chris Miller",
+    email: "chris@avexa.test",
+  },
+  {
+    id: "seed-user-alex-000000000003",
+    name: "Alex Brown",
+    email: "alex@avexa.test",
+  },
+];
+
 export const seedClients: SeedClient[] = [
   {
     slug: "pax8",

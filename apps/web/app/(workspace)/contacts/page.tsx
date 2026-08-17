@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import { useAppData, type ContactView } from "../../context/AppDataContext";
-import { ApiError } from "../../lib/api/request";
-import { formatContactName, type ContactStatus } from "../../lib/mockData";
+import { useAppData, type ContactView } from "../../../context/AppDataContext";
+import { ApiError } from "../../../lib/api/request";
+import { formatContactName, type ContactStatus } from "../../../lib/mockData";
 
 import styles from "./page.module.css";
 

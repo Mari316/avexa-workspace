@@ -4,15 +4,15 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { useAppData, type TaskView } from "../../../context/AppDataContext";
-import { ApiError } from "../../../lib/api/request";
-import { markTaskDeleteSuccess } from "../../../lib/deletedTasks";
-import { notifyTaskUpdated } from "../../../lib/mockNotifications";
+import { useAppData, type TaskView } from "../../../../context/AppDataContext";
+import { ApiError } from "../../../../lib/api/request";
+import { markTaskDeleteSuccess } from "../../../../lib/deletedTasks";
+import { notifyTaskUpdated } from "../../../../lib/mockNotifications";
 import {
   formatTaskDueDate,
   type TaskPriority,
   type TaskStatus,
-} from "../../../lib/mockData";
+} from "../../../../lib/mockData";
 
 import styles from "./page.module.css";
 

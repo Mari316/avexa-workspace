@@ -11,8 +11,13 @@ import {
   updateProjectBySlug,
 } from "../../../../../server/projects/project.service";
 import {
+  UnauthorizedError,
+  requireUser,
+} from "../../../../../server/auth/require-user";
+import {
   errorResponse,
   internalErrorResponse,
+  unauthorizedResponse,
   validationErrorResponse,
 } from "../../../../../server/http/errors";
 
@@ -38,10 +43,15 @@ export async function GET(
   }
 
   try {
+    await requireUser();
     const row = await getProjectBySlug(slug);
 
     return row ? NextResponse.json({ data: toProjectDTO(row) }) : projectNotFound();
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     return internalErrorResponse(`GET /api/v1/projects/${slug}`, error);
   }
 }
@@ -54,6 +64,16 @@ export async function PATCH(
 
   if (!projectSlugParamSchema.safeParse(slug).success) {
     return projectNotFound();
+  }
+
+  try {
+    await requireUser();
+  } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
+    return internalErrorResponse("requireUser", error);
   }
 
   let body: unknown;
@@ -75,6 +95,10 @@ export async function PATCH(
 
     return row ? NextResponse.json({ data: toProjectDTO(row) }) : projectNotFound();
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return unauthorizedResponse();
+    }
+
     if (error instanceof ClientNotFoundError) {
       return errorResponse(400, "CLIENT_NOT_FOUND", "The selected client does not exist.");
     }

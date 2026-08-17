@@ -3,6 +3,7 @@ import type { ZodError } from "zod";
 
 export type ApiErrorCode =
   | "VALIDATION_ERROR"
+  | "UNAUTHORIZED"
   | "CLIENT_NAME_NOT_SLUGGABLE"
   | "CLIENT_NOT_FOUND"
   | "CLIENT_SLUG_CONFLICT"
@@ -47,4 +48,8 @@ export function internalErrorResponse(context: string, error: unknown): NextResp
   console.error(`[api] ${context} failed:`, error);
 
   return errorResponse(500, "INTERNAL_ERROR", "Something went wrong.");
+}
+
+export function unauthorizedResponse(): NextResponse {
+  return errorResponse(401, "UNAUTHORIZED", "Authentication required.");
 }
