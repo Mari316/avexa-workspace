@@ -1,50 +1,38 @@
 import {
-  clients as seedClients,
-  contacts as seedContacts,
-  formatContactName,
-  getContactSlug,
   projects as seedProjects,
   tasks as seedTasks,
-  type Client,
-  type Contact,
   type Project,
   type Task,
 } from "./mockData";
 
-/** Primary persisted workspace blob (single object keeps relationships atomic). */
-export const WORKSPACE_STORAGE_KEY = "avexa.workspace.v1";
+/**
+ * Workspace blob for the domains that still live in the browser. Clients and contacts
+ * were removed in v2 once both moved to PostgreSQL; projects and tasks follow later.
+ */
+export const WORKSPACE_STORAGE_KEY = "avexa.workspace.v2";
 
-/** Previous storage key — migrated automatically on load. */
-export const LEGACY_STORAGE_KEY = "avexa-app-data";
+/** Superseded keys, cleared on load so stale client/contact copies cannot resurface. */
+const RETIRED_STORAGE_KEYS = [
+  "avexa.workspace.v1",
+  "avexa-app-data",
+  "avexa.clientPrimaryContacts.v1",
+];
 
-export const WORKSPACE_STORAGE_VERSION = 1 as const;
+export const WORKSPACE_STORAGE_VERSION = 2 as const;
 
 export type StoredAppData = {
-  clients: Client[];
   projects: Project[];
   tasks: Task[];
-  contacts: Contact[];
 };
 
 type PersistedWorkspace = StoredAppData & {
   version: typeof WORKSPACE_STORAGE_VERSION;
 };
 
-type LegacyClient = Client & {
-  primaryContact?: string;
-  contactEmail?: string;
-};
-
-type LegacyContact = Contact & {
-  slug?: string;
-};
-
 export function getSeedData(): StoredAppData {
   return {
-    clients: seedClients.map((client) => ({ ...client })),
     projects: seedProjects.map((project) => ({ ...project })),
     tasks: seedTasks.map((task) => ({ ...task })),
-    contacts: seedContacts.map((contact) => ({ ...contact })),
   };
 }
 
@@ -55,29 +43,25 @@ function isStoredAppData(value: unknown): value is StoredAppData {
 
   const candidate = value as StoredAppData;
 
-  return (
-    Array.isArray(candidate.clients) &&
-    Array.isArray(candidate.projects) &&
-    Array.isArray(candidate.tasks) &&
-    Array.isArray(candidate.contacts)
-  );
+  return Array.isArray(candidate.projects) && Array.isArray(candidate.tasks);
 }
 
+/**
+ * v1 payloads also carried clients and contacts. Those keys are simply dropped: both
+ * domains are now owned by the database, so a browser copy would only go stale.
+ */
 function parsePersistedWorkspace(raw: string): StoredAppData | null {
   try {
     const parsed: unknown = JSON.parse(raw);
 
-    if (!parsed || typeof parsed !== "object") {
+    if (!isStoredAppData(parsed)) {
       return null;
     }
 
-    const record = parsed as PersistedWorkspace | StoredAppData;
-
-    if ("version" in record && record.version === WORKSPACE_STORAGE_VERSION) {
-      return isStoredAppData(record) ? record : null;
-    }
-
-    return isStoredAppData(record) ? record : null;
+    return {
+      projects: parsed.projects,
+      tasks: parsed.tasks,
+    };
   } catch {
     return null;
   }
@@ -94,234 +78,15 @@ function readRawWorkspaceData(): string | null {
     return current;
   }
 
-  const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
-
-  if (legacy) {
-    localStorage.setItem(WORKSPACE_STORAGE_KEY, legacy);
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
-    return legacy;
-  }
-
-  return null;
-}
-
-function migrateContacts(
-  storedContacts: LegacyContact[],
-  seed: StoredAppData,
-): Contact[] {
-  return storedContacts.map((contact) => {
-    if (contact.slug) {
-      return contact;
-    }
-
-    const seedContact = seed.contacts.find(
-      (seedItem) => seedItem.id === contact.id,
-    );
-
-    if (seedContact) {
-      return { ...contact, slug: seedContact.slug };
-    }
-
-    return {
-      ...contact,
-      slug: getContactSlug(contact.firstName, contact.lastName),
-    };
-  });
-}
-
-function findSeedClientForStoredClient(
-  client: LegacyClient,
-  contacts: Contact[],
-  projects: Project[],
-  seed: StoredAppData,
-): Client | undefined {
-  const seedSlugs = new Set(seed.clients.map((seedClient) => seedClient.slug));
-
-  if (seedSlugs.has(client.slug)) {
-    return seed.clients.find((seedClient) => seedClient.slug === client.slug);
-  }
-
-  if (client.primaryContactSlug) {
-    const match = seed.clients.find(
-      (seedClient) =>
-        seedClient.primaryContactSlug === client.primaryContactSlug,
-    );
-
-    if (match) {
-      return match;
-    }
-  }
-
-  const storedProjectSlugs = new Set(
-    projects
-      .filter((project) => project.client === client.name)
-      .map((project) => project.slug),
-  );
-
-  for (const seedClient of seed.clients) {
-    const seedProjectSlugs = seed.projects
-      .filter((project) => project.client === seedClient.name)
-      .map((project) => project.slug);
-
-    if (
-      seedProjectSlugs.some((projectSlug) => storedProjectSlugs.has(projectSlug))
-    ) {
-      return seedClient;
-    }
-  }
-
-  for (const seedClient of seed.clients) {
-    const seedContactEmails = new Set(
-      seed.contacts
-        .filter((contact) => contact.client === seedClient.name)
-        .map((contact) => contact.email),
-    );
-
-    const hasSharedContact = contacts.some(
-      (contact) =>
-        contact.client === client.name &&
-        seedContactEmails.has(contact.email),
-    );
-
-    if (hasSharedContact) {
-      return seedClient;
-    }
-  }
-
-  if (client.primaryContact || client.contactEmail) {
-    for (const seedClient of seed.clients) {
-      const seedPrimaryContact = seed.contacts.find(
-        (contact) => contact.slug === seedClient.primaryContactSlug,
-      );
-
-      if (!seedPrimaryContact) {
-        continue;
-      }
-
-      const nameMatches =
-        client.primaryContact &&
-        formatContactName(
-          seedPrimaryContact.firstName,
-          seedPrimaryContact.lastName,
-        ) === client.primaryContact;
-
-      const emailMatches =
-        client.contactEmail &&
-        seedPrimaryContact.email === client.contactEmail;
-
-      if (nameMatches || emailMatches) {
-        return seedClient;
-      }
-    }
-  }
-
-  return undefined;
-}
-
-function normalizeClientSlug(client: LegacyClient, seedClient?: Client): string {
-  if (seedClient) {
-    return seedClient.slug;
-  }
-
-  return client.slug.toLowerCase().replace(/\s+/g, "-");
-}
-
-function deduplicateClientsBySlug(
-  clients: Client[],
-  seed: StoredAppData,
-): Client[] {
-  const seedBySlug = new Map(
-    seed.clients.map((seedClient) => [seedClient.slug, seedClient]),
-  );
-  const bySlug = new Map<string, Client>();
-
-  for (const client of clients) {
-    const existing = bySlug.get(client.slug);
-
-    if (!existing) {
-      bySlug.set(client.slug, client);
-      continue;
-    }
-
-    const seedClient = seedBySlug.get(client.slug);
-    const existingUsesSeedName =
-      seedClient !== undefined && existing.name === seedClient.name;
-    const clientUsesSeedName =
-      seedClient !== undefined && client.name === seedClient.name;
-
-    if (existingUsesSeedName && !clientUsesSeedName) {
-      bySlug.set(client.slug, client);
-    }
-  }
-
-  return Array.from(bySlug.values());
-}
-
-function migrateClients(
-  storedClients: LegacyClient[],
-  contacts: Contact[],
-  projects: Project[],
-  seed: StoredAppData,
-): Client[] {
-  return storedClients.map((client) => {
-    const seedClient = findSeedClientForStoredClient(
-      client,
-      contacts,
-      projects,
-      seed,
-    );
-    const stableSlug = normalizeClientSlug(client, seedClient);
-
-    let primaryContactSlug = client.primaryContactSlug ?? "";
-
-    if (!primaryContactSlug && client.primaryContact) {
-      const matchedContact = contacts.find(
-        (contact) =>
-          formatContactName(contact.firstName, contact.lastName) ===
-            client.primaryContact ||
-          (client.contactEmail && contact.email === client.contactEmail),
-      );
-
-      primaryContactSlug =
-        matchedContact?.slug ?? seedClient?.primaryContactSlug ?? "";
-    }
-
-    if (!primaryContactSlug && seedClient) {
-      primaryContactSlug = seedClient.primaryContactSlug;
-    }
-
-    return {
-      name: client.name,
-      slug: stableSlug,
-      projectCount: client.projectCount,
-      primaryContactSlug,
-      status: client.status,
-    };
-  });
-}
-
-export function migrateAppData(
-  parsed: StoredAppData,
-  seed: StoredAppData = getSeedData(),
-): StoredAppData {
-  const contacts = migrateContacts(parsed.contacts, seed);
-  const clients = deduplicateClientsBySlug(
-    migrateClients(parsed.clients, contacts, parsed.projects, seed),
-    seed,
-  );
-
-  return {
-    clients,
-    projects: parsed.projects,
-    tasks: parsed.tasks,
-    contacts,
-  };
+  // Carry forward the projects and tasks a user already changed under the old key.
+  return localStorage.getItem("avexa.workspace.v1");
 }
 
 function serializeWorkspace(data: StoredAppData): string {
   const payload: PersistedWorkspace = {
     version: WORKSPACE_STORAGE_VERSION,
-    ...migrateAppData(data),
+    projects: data.projects,
+    tasks: data.tasks,
   };
 
   return JSON.stringify(payload);
@@ -335,28 +100,24 @@ export function saveAppData(data: StoredAppData): void {
   localStorage.setItem(WORKSPACE_STORAGE_KEY, serializeWorkspace(data));
 }
 
-export function loadAppData(seed: StoredAppData = getSeedData()): StoredAppData {
+export function loadAppData(
+  seed: StoredAppData = getSeedData(),
+): StoredAppData {
   if (typeof window === "undefined") {
     return seed;
   }
 
   const raw = readRawWorkspaceData();
+  const parsed = raw ? parsePersistedWorkspace(raw) : null;
+  const data = parsed ?? seed;
 
-  if (!raw) {
-    saveAppData(seed);
-    return seed;
+  saveAppData(data);
+
+  for (const key of RETIRED_STORAGE_KEYS) {
+    localStorage.removeItem(key);
   }
 
-  const parsed = parsePersistedWorkspace(raw);
-
-  if (!parsed) {
-    saveAppData(seed);
-    return seed;
-  }
-
-  const migrated = migrateAppData(parsed, seed);
-  localStorage.setItem(WORKSPACE_STORAGE_KEY, serializeWorkspace(migrated));
-  return migrated;
+  return data;
 }
 
 export function clearAppDataStorage(): void {
@@ -365,8 +126,8 @@ export function clearAppDataStorage(): void {
   }
 
   localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-  localStorage.removeItem(LEGACY_STORAGE_KEY);
-}
 
-/** @deprecated Use WORKSPACE_STORAGE_KEY */
-export const APP_DATA_STORAGE_KEY = WORKSPACE_STORAGE_KEY;
+  for (const key of RETIRED_STORAGE_KEYS) {
+    localStorage.removeItem(key);
+  }
+}

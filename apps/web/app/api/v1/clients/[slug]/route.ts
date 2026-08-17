@@ -7,6 +7,8 @@ import {
 } from "../../../../../server/clients/client.schema";
 import {
   getClientBySlug,
+  PrimaryContactClientMismatchError,
+  PrimaryContactNotFoundError,
   updateClientBySlug,
 } from "../../../../../server/clients/client.service";
 import {
@@ -69,6 +71,22 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
 
     return row ? NextResponse.json({ data: toClientDTO(row) }) : clientNotFound();
   } catch (error) {
+    if (error instanceof PrimaryContactNotFoundError) {
+      return errorResponse(
+        400,
+        "CONTACT_NOT_FOUND",
+        "The selected primary contact does not exist.",
+      );
+    }
+
+    if (error instanceof PrimaryContactClientMismatchError) {
+      return errorResponse(
+        409,
+        "PRIMARY_CONTACT_CLIENT_MISMATCH",
+        "That contact belongs to a different client.",
+      );
+    }
+
     return internalErrorResponse(`PATCH /api/v1/clients/${slug}`, error);
   }
 }

@@ -13,6 +13,8 @@ export const updateClientSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     status: clientStatusSchema.optional(),
+    /** `null` clears the primary contact; a uuid must reference a contact of this client. */
+    primaryContactId: z.uuid().nullable().optional(),
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, {

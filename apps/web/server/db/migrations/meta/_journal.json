@@ -8,6 +8,20 @@
       "when": 1786929576821,
       "tag": "0000_create_clients",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786936092687,
+      "tag": "0001_create_contacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786936104652,
+      "tag": "0002_add_client_primary_contact",
+      "breakpoints": true
     }
   ]
 }

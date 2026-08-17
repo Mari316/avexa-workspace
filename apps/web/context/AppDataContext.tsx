@@ -19,28 +19,25 @@ import {
   type UpdateClientBody,
 } from "../lib/api/clients";
 import {
+  createContact as createContactRequest,
+  listContacts as listContactsRequest,
+  updateContact as updateContactRequest,
+  type ContactDTO,
+  type CreateContactBody,
+  type UpdateContactBody,
+} from "../lib/api/contacts";
+import {
   clearAppDataStorage,
   getSeedData,
   loadAppData,
   saveAppData,
   type StoredAppData,
 } from "../lib/appDataStorage";
-import {
-  loadClientPrimaryContacts,
-  resetClientPrimaryContacts,
-  saveClientPrimaryContacts,
-  type ClientPrimaryContacts,
-} from "../lib/clientPrimaryContacts";
-import type { ClientStatus, Contact, Project, Task } from "../lib/mockData";
+import type { ClientStatus, Project, Task } from "../lib/mockData";
 
-/**
- * A client as the UI needs it: the database-backed fields from the API plus the
- * primary contact, which is still a browser-only relationship until contacts move
- * to the database.
- */
-export type ClientView = ClientDTO & {
-  primaryContactSlug: string;
-};
+/** Clients and contacts are database records; both are used as-is from the API. */
+export type ClientView = ClientDTO;
+export type ContactView = ContactDTO;
 
 export type ClientCreateInput = {
   name: string;
@@ -50,16 +47,18 @@ export type ClientCreateInput = {
 export type ClientUpdateInput = {
   name: string;
   status: ClientStatus;
-  primaryContactSlug: string;
+  primaryContactId: string | null;
 };
 
 type AppDataState = {
   clients: ClientView[];
   isLoadingClients: boolean;
   clientsError: string;
+  contacts: ContactView[];
+  isLoadingContacts: boolean;
+  contactsError: string;
   projects: Project[];
   tasks: Task[];
-  contacts: Contact[];
   isHydrated: boolean;
 };
 
@@ -70,16 +69,19 @@ type AppDataActions = {
   addTask: (task: Task) => void;
   updateTask: (slug: string, task: Task) => void;
   deleteTask: (slug: string) => void;
-  addContact: (contact: Contact) => void;
-  updateContact: (slug: string, contact: Contact) => void;
+  addContact: (input: CreateContactBody) => Promise<ContactView>;
+  updateContact: (
+    slug: string,
+    input: UpdateContactBody,
+  ) => Promise<ContactView>;
   resetDemoData: () => void;
   getProjectBySlug: (slug: string) => Project | undefined;
   getProjectByName: (name: string) => Project | undefined;
   getTaskBySlug: (slug: string) => Task | undefined;
   getClientBySlug: (slug: string) => ClientView | undefined;
-  getContactBySlug: (slug: string) => Contact | undefined;
+  getContactBySlug: (slug: string) => ContactView | undefined;
   getProjectsByClient: (clientName: string) => Project[];
-  getContactsByClient: (clientName: string) => Contact[];
+  getContactsByClientId: (clientId: string) => ContactView[];
   getTasksByProject: (projectName: string) => Task[];
   getProjectNamesByClient: (clientName: string) => string[];
 };
@@ -93,13 +95,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const dataRef = useRef(data);
 
-  // Clients come from PostgreSQL, so they start empty rather than from seed data.
-  const [apiClients, setApiClients] = useState<ClientDTO[]>([]);
-  const [primaryContacts, setPrimaryContacts] = useState<ClientPrimaryContacts>(
-    {},
-  );
+  // Clients and contacts come from PostgreSQL, so both start empty rather than seeded.
+  const [clients, setClients] = useState<ClientView[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [clientsError, setClientsError] = useState("");
+
+  const [contacts, setContacts] = useState<ContactView[]>([]);
+  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
+  const [contactsError, setContactsError] = useState("");
 
   useEffect(() => {
     dataRef.current = data;
@@ -107,7 +110,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setData(loadAppData(seedData));
-    setPrimaryContacts(loadClientPrimaryContacts());
     setIsHydrated(true);
   }, [seedData]);
 
@@ -117,7 +119,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     listClientsRequest()
       .then((rows) => {
         if (!cancelled) {
-          setApiClients(rows);
+          setClients(rows);
           setClientsError("");
         }
       })
@@ -137,14 +139,31 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const clients = useMemo<ClientView[]>(
-    () =>
-      apiClients.map((client) => ({
-        ...client,
-        primaryContactSlug: primaryContacts[client.slug] ?? "",
-      })),
-    [apiClients, primaryContacts],
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    listContactsRequest()
+      .then((rows) => {
+        if (!cancelled) {
+          setContacts(rows);
+          setContactsError("");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setContactsError("Unable to load contacts. Please refresh the page.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingContacts(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const persist = useCallback(
     (updater: (current: StoredAppData) => StoredAppData) => {
@@ -159,9 +178,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const actions = useMemo<AppDataActions>(() => {
     /**
-     * Temporary compatibility: projects, tasks and contacts still store their client
-     * as a name string in localStorage, so a rename in PostgreSQL has to be mirrored
-     * into them. This disappears once those domains use database foreign keys.
+     * Temporary compatibility: projects and tasks still store their client as a
+     * name string in localStorage, so a rename in PostgreSQL has to be mirrored
+     * into them. Contacts now use clientId and are no longer rewritten here.
      */
     const cascadeClientRename = (previousName: string, nextName: string) => {
       persist((current) => ({
@@ -174,28 +193,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         tasks: current.tasks.map((task) =>
           task.client === previousName ? { ...task, client: nextName } : task,
         ),
-        contacts: current.contacts.map((contact) =>
-          contact.client === previousName
-            ? { ...contact, client: nextName }
-            : contact,
-        ),
       }));
-    };
-
-    const setPrimaryContactSlug = (clientSlug: string, contactSlug: string) => {
-      setPrimaryContacts((current) => {
-        const next = { ...current };
-
-        if (contactSlug) {
-          next[clientSlug] = contactSlug;
-        } else {
-          delete next[clientSlug];
-        }
-
-        saveClientPrimaryContacts(next);
-
-        return next;
-      });
     };
 
     const addClient = async (input: ClientCreateInput): Promise<ClientView> => {
@@ -204,16 +202,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         status: input.status,
       });
 
-      setApiClients((current) => [...current, created]);
+      setClients((current) => [...current, created]);
 
-      return { ...created, primaryContactSlug: "" };
+      return created;
     };
 
     const updateClient = async (
       slug: string,
       input: ClientUpdateInput,
     ): Promise<ClientView> => {
-      const existing = apiClients.find((client) => client.slug === slug);
+      const existing = clients.find((client) => client.slug === slug);
 
       if (!existing) {
         throw new Error(`Client "${slug}" is no longer available.`);
@@ -229,13 +227,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         changes.status = input.status;
       }
 
+      if (input.primaryContactId !== existing.primaryContactId) {
+        changes.primaryContactId = input.primaryContactId;
+      }
+
       let updated = existing;
 
-      // An unchanged name and status would be an empty PATCH body, which the API rejects.
+      // An unchanged payload would be an empty PATCH body, which the API rejects.
       if (Object.keys(changes).length > 0) {
         updated = await updateClientRequest(slug, changes);
 
-        setApiClients((current) =>
+        setClients((current) =>
           current.map((client) => (client.slug === slug ? updated : client)),
         );
 
@@ -244,9 +246,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      setPrimaryContactSlug(slug, input.primaryContactSlug);
-
-      return { ...updated, primaryContactSlug: input.primaryContactSlug };
+      return updated;
     };
 
     const addProject = (project: Project) => {
@@ -305,49 +305,36 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }));
     };
 
-    const addContact = (contact: Contact) => {
-      persist((current) => {
-        if (
-          current.contacts.some((existing) => existing.slug === contact.slug)
-        ) {
-          return current;
-        }
+    const addContact = async (
+      input: CreateContactBody,
+    ): Promise<ContactView> => {
+      const created = await createContactRequest(input);
 
-        return {
-          ...current,
-          contacts: [...current.contacts, contact],
-        };
-      });
+      setContacts((current) => [...current, created]);
+
+      return created;
     };
 
-    const updateContact = (slug: string, contact: Contact) => {
-      persist((current) => {
-        const existingContact = current.contacts.find(
-          (currentContact) => currentContact.slug === slug,
-        );
+    const updateContact = async (
+      slug: string,
+      input: UpdateContactBody,
+    ): Promise<ContactView> => {
+      const updated = await updateContactRequest(slug, input);
 
-        if (!existingContact) {
-          return current;
-        }
+      setContacts((current) =>
+        current.map((contact) => (contact.slug === slug ? updated : contact)),
+      );
 
-        return {
-          ...current,
-          contacts: current.contacts.map((currentContact) =>
-            currentContact.slug === slug
-              ? { ...contact, slug: currentContact.slug, id: currentContact.id }
-              : currentContact,
-          ),
-        };
-      });
+      return updated;
     };
 
-    // Clients live in PostgreSQL and are deliberately left untouched by a demo reset.
+    // Clients and contacts live in PostgreSQL and are deliberately left
+    // untouched by a demo reset.
     const resetDemoData = () => {
       const seed = getSeedData();
       clearAppDataStorage();
       saveAppData(seed);
       setData(seed);
-      setPrimaryContacts(resetClientPrimaryContacts());
     };
 
     return {
@@ -369,15 +356,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       getTaskBySlug: (slug: string) =>
         dataRef.current.tasks.find((task) => task.slug === slug),
       getContactBySlug: (slug: string) =>
-        dataRef.current.contacts.find((contact) => contact.slug === slug),
+        contacts.find((contact) => contact.slug === slug),
       getProjectsByClient: (clientName: string) =>
         dataRef.current.projects.filter(
           (project) => project.client === clientName,
         ),
-      getContactsByClient: (clientName: string) =>
-        dataRef.current.contacts.filter(
-          (contact) => contact.client === clientName,
-        ),
+      getContactsByClientId: (clientId: string) =>
+        contacts.filter((contact) => contact.clientId === clientId),
       getTasksByProject: (projectName: string) =>
         dataRef.current.tasks.filter((task) => task.project === projectName),
       getProjectNamesByClient: (clientName: string) =>
@@ -385,19 +370,30 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           .filter((project) => project.client === clientName)
           .map((project) => project.name),
     };
-  }, [apiClients, clients, persist]);
+  }, [clients, contacts, persist]);
 
   const state = useMemo(
     () => ({
       clients,
       isLoadingClients,
       clientsError,
+      contacts,
+      isLoadingContacts,
+      contactsError,
       projects: data.projects,
       tasks: data.tasks,
-      contacts: data.contacts,
       isHydrated,
     }),
-    [clients, clientsError, data, isHydrated, isLoadingClients],
+    [
+      clients,
+      clientsError,
+      contacts,
+      contactsError,
+      data,
+      isHydrated,
+      isLoadingClients,
+      isLoadingContacts,
+    ],
   );
 
   return (

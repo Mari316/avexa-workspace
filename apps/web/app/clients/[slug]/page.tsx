@@ -18,14 +18,16 @@ export default function ClientDetailsPage() {
     contacts,
     getClientBySlug,
     getProjectsByClient,
-    getContactsByClient,
+    getContactsByClientId,
     isLoadingClients,
+    isLoadingContacts,
     tasks,
   } = useAppData();
   const client = getClientBySlug(slug);
 
-  // Clients arrive from the API, so "not found" is only meaningful once loading finishes.
-  if (isLoadingClients) {
+  // Clients and contacts arrive from the API independently, so "not found"
+  // and empty relationship lists are only meaningful once both loads finish.
+  if (isLoadingClients || isLoadingContacts) {
     return (
       <main className={styles.container}>
         <Link href="/clients" className={styles.backLink}>
@@ -51,7 +53,7 @@ export default function ClientDetailsPage() {
   }
 
   const clientProjects = getProjectsByClient(client.name);
-  const clientContacts = getContactsByClient(client.name);
+  const clientContacts = getContactsByClientId(client.id);
   const primaryContact = resolveClientPrimaryContact(client, contacts);
 
   return (

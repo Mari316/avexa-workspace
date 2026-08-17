@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
 import { useAppData, type ClientView } from "../../context/AppDataContext";
-import { ClientApiError } from "../../lib/api/clients";
+import { ApiError } from "../../lib/api/request";
 import {
   formatContactName,
   resolveClientPrimaryContact,
@@ -15,18 +15,18 @@ import styles from "./page.module.css";
 
 type ClientFormData = {
   name: string;
-  primaryContactSlug: string;
+  primaryContactId: string;
   status: ClientStatus;
 };
 
 type FormErrors = {
   name?: string;
-  primaryContactSlug?: string;
+  primaryContactId?: string;
 };
 
 const emptyForm: ClientFormData = {
   name: "",
-  primaryContactSlug: "",
+  primaryContactId: "",
   status: "Active",
 };
 
@@ -45,20 +45,22 @@ function validateForm(
     errors.name = "Client name is required.";
   }
 
-  if (mode === "edit" && hasClientContacts && !form.primaryContactSlug) {
-    errors.primaryContactSlug = "Primary contact is required.";
+  if (mode === "edit" && hasClientContacts && !form.primaryContactId) {
+    errors.primaryContactId = "Primary contact is required.";
   }
 
   return errors;
 }
 
 function toFormErrorMessage(error: unknown): string {
-  if (error instanceof ClientApiError) {
+  if (error instanceof ApiError) {
     switch (error.code) {
       case "CLIENT_SLUG_CONFLICT":
         return "A client with this name already exists.";
       case "CLIENT_NAME_NOT_SLUGGABLE":
         return "Enter a client name containing letters or numbers.";
+      case "PRIMARY_CONTACT_CLIENT_MISMATCH":
+        return "That contact belongs to a different client.";
       case "VALIDATION_ERROR":
         return "Please check the values you entered and try again.";
       case "NETWORK_ERROR":
@@ -100,7 +102,7 @@ export default function ClientsPage() {
       return [];
     }
 
-    return contacts.filter((contact) => contact.client === editingClient.name);
+    return contacts.filter((contact) => contact.clientId === editingClient.id);
   }, [contacts, editingClient]);
 
   const projectCountByClient = useMemo(() => {
@@ -127,7 +129,7 @@ export default function ClientsPage() {
     setEditingClientSlug(client.slug);
     setForm({
       name: client.name,
-      primaryContactSlug: client.primaryContactSlug,
+      primaryContactId: client.primaryContactId ?? "",
       status: client.status,
     });
     setErrors({});
@@ -167,7 +169,7 @@ export default function ClientsPage() {
       } else if (editingClientSlug) {
         await updateClient(editingClientSlug, {
           name: form.name.trim(),
-          primaryContactSlug: form.primaryContactSlug,
+          primaryContactId: form.primaryContactId || null,
           status: form.status,
         });
       }
@@ -182,7 +184,7 @@ export default function ClientsPage() {
   }
 
   const selectedPrimaryContact = clientContactsForEdit.find(
-    (contact) => contact.slug === form.primaryContactSlug,
+    (contact) => contact.id === form.primaryContactId,
   );
 
   return (
@@ -349,23 +351,23 @@ export default function ClientsPage() {
                     <select
                       id="primary-contact"
                       className={styles.select}
-                      value={form.primaryContactSlug}
+                      value={form.primaryContactId}
                       onChange={(event) =>
                         setForm((currentForm) => ({
                           ...currentForm,
-                          primaryContactSlug: event.target.value,
+                          primaryContactId: event.target.value,
                         }))
                       }
-                      aria-invalid={Boolean(errors.primaryContactSlug)}
+                      aria-invalid={Boolean(errors.primaryContactId)}
                       aria-describedby={
-                        errors.primaryContactSlug
+                        errors.primaryContactId
                           ? "primary-contact-error"
                           : undefined
                       }
                     >
                       <option value="">Select a contact</option>
                       {clientContactsForEdit.map((contact) => (
-                        <option key={contact.slug} value={contact.slug}>
+                        <option key={contact.id} value={contact.id}>
                           {formatContactName(
                             contact.firstName,
                             contact.lastName,
@@ -373,9 +375,9 @@ export default function ClientsPage() {
                         </option>
                       ))}
                     </select>
-                    {errors.primaryContactSlug && (
+                    {errors.primaryContactId && (
                       <p id="primary-contact-error" className={styles.error}>
-                        {errors.primaryContactSlug}
+                        {errors.primaryContactId}
                       </p>
                     )}
                     {clientContactsForEdit.length === 0 && (

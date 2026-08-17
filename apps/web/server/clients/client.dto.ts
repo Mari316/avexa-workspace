@@ -5,6 +5,8 @@ export type ClientDTO = {
   slug: string;
   name: string;
   status: ClientRow["status"];
+  /** Null when no primary contact is selected. The contact always belongs to this client. */
+  primaryContactId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -16,6 +18,7 @@ export function toClientDTO(row: ClientRow): ClientDTO {
     slug: row.slug,
     name: row.name,
     status: row.status,
+    primaryContactId: row.primaryContactId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

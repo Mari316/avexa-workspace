@@ -3,20 +3,16 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import { useAppData } from "../../context/AppDataContext";
-import {
-  formatContactName,
-  getContactSlug,
-  type Contact,
-  type ContactStatus,
-} from "../../lib/mockData";
+import { useAppData, type ContactView } from "../../context/AppDataContext";
+import { ApiError } from "../../lib/api/request";
+import { formatContactName, type ContactStatus } from "../../lib/mockData";
 
 import styles from "./page.module.css";
 
 type ContactFormData = {
   firstName: string;
   lastName: string;
-  client: string;
+  clientId: string;
   email: string;
   role: string;
   status: ContactStatus;
@@ -25,7 +21,7 @@ type ContactFormData = {
 type FormErrors = {
   firstName?: string;
   lastName?: string;
-  client?: string;
+  clientId?: string;
   email?: string;
   role?: string;
 };
@@ -33,7 +29,7 @@ type FormErrors = {
 const emptyForm: ContactFormData = {
   firstName: "",
   lastName: "",
-  client: "",
+  clientId: "",
   email: "",
   role: "",
   status: "Active",
@@ -50,8 +46,8 @@ function validateForm(form: ContactFormData): FormErrors {
     errors.lastName = "Last name is required.";
   }
 
-  if (!form.client) {
-    errors.client = "Client is required.";
+  if (!form.clientId) {
+    errors.clientId = "Client is required.";
   }
 
   if (!form.email.trim()) {
@@ -65,9 +61,39 @@ function validateForm(form: ContactFormData): FormErrors {
   return errors;
 }
 
+function toFormErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "CONTACT_SLUG_CONFLICT":
+        return "A contact with this name already exists.";
+      case "CONTACT_NAME_NOT_SLUGGABLE":
+        return "Enter a contact name containing letters or numbers.";
+      case "CONTACT_IS_PRIMARY_CONTACT":
+        return "This contact is the primary contact for its current client. Choose a different primary contact first.";
+      case "CLIENT_NOT_FOUND":
+        return "The selected client does not exist.";
+      case "VALIDATION_ERROR":
+        return "Please check the values you entered and try again.";
+      case "NETWORK_ERROR":
+        return "Unable to reach the server. Please try again.";
+      default:
+        return "Something went wrong. Please try again.";
+    }
+  }
+
+  return "Something went wrong. Please try again.";
+}
+
 export default function ContactsPage() {
-  const { clients, contacts, addContact, updateContact } = useAppData();
-  const clientOptions = clients.map((client) => client.name);
+  const {
+    clients,
+    contacts,
+    isLoadingContacts,
+    contactsError,
+    addContact,
+    updateContact,
+    isHydrated,
+  } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
   const [editingContactSlug, setEditingContactSlug] = useState<string | null>(
@@ -75,27 +101,31 @@ export default function ContactsPage() {
   );
   const [form, setForm] = useState<ContactFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   function openAddModal() {
     setFormMode("add");
     setEditingContactSlug(null);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
     setIsModalOpen(true);
   }
 
-  function openEditModal(contact: Contact) {
+  function openEditModal(contact: ContactView) {
     setFormMode("edit");
     setEditingContactSlug(contact.slug);
     setForm({
       firstName: contact.firstName,
       lastName: contact.lastName,
-      client: contact.client,
+      clientId: contact.clientId,
       email: contact.email,
       role: contact.role,
       status: contact.status,
     });
     setErrors({});
+    setFormError("");
     setIsModalOpen(true);
   }
 
@@ -105,9 +135,10 @@ export default function ContactsPage() {
     setEditingContactSlug(null);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationErrors = validateForm(form);
@@ -117,42 +148,36 @@ export default function ContactsPage() {
       return;
     }
 
-    if (formMode === "add") {
-      const newContact: Contact = {
-        id: `contact-${Date.now()}`,
-        slug: getContactSlug(form.firstName.trim(), form.lastName.trim()),
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        client: form.client,
-        email: form.email.trim(),
-        role: form.role.trim(),
-        status: form.status,
-      };
+    setFormError("");
+    setIsSaving(true);
 
-      addContact(newContact);
-    } else if (editingContactSlug) {
-      const existingContact = contacts.find(
-        (contact) => contact.slug === editingContactSlug,
-      );
-
-      if (!existingContact) {
-        return;
+    try {
+      if (formMode === "add") {
+        await addContact({
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          clientId: form.clientId,
+          email: form.email.trim(),
+          role: form.role.trim(),
+          status: form.status,
+        });
+      } else if (editingContactSlug) {
+        await updateContact(editingContactSlug, {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          clientId: form.clientId,
+          email: form.email.trim(),
+          role: form.role.trim(),
+          status: form.status,
+        });
       }
 
-      const updatedContact: Contact = {
-        ...existingContact,
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        client: form.client,
-        email: form.email.trim(),
-        role: form.role.trim(),
-        status: form.status,
-      };
-
-      updateContact(editingContactSlug, updatedContact);
+      closeModal();
+    } catch (error) {
+      setFormError(toFormErrorMessage(error));
+    } finally {
+      setIsSaving(false);
     }
-
-    closeModal();
   }
 
   return (
@@ -188,44 +213,66 @@ export default function ContactsPage() {
               </tr>
             </thead>
             <tbody>
-              {contacts.map((contact) => (
-                <tr key={contact.id}>
-                  <td className={styles.contactName}>
-                    {formatContactName(contact.firstName, contact.lastName)}
-                  </td>
-                  <td className={styles.secondaryText}>{contact.client}</td>
-                  <td className={styles.secondaryText}>{contact.email}</td>
-                  <td className={styles.secondaryText}>{contact.role}</td>
-                  <td>
-                    <span
-                      className={`${styles.badge} ${
-                        contact.status === "Active"
-                          ? styles.badgeActive
-                          : styles.badgeInactive
-                      }`}
-                    >
-                      {contact.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className={styles.actionButtons}>
-                      <Link
-                        href={`/contacts/${contact.slug}`}
-                        className={styles.actionButton}
-                      >
-                        View →
-                      </Link>
-                      <button
-                        type="button"
-                        className={styles.actionButton}
-                        onClick={() => openEditModal(contact)}
-                      >
-                        Edit
-                      </button>
-                    </div>
+              {!isHydrated || isLoadingContacts ? (
+                <tr>
+                  <td colSpan={6} className={styles.secondaryText}>
+                    Loading contacts…
                   </td>
                 </tr>
-              ))}
+              ) : contactsError ? (
+                <tr>
+                  <td colSpan={6} className={styles.error}>
+                    {contactsError}
+                  </td>
+                </tr>
+              ) : contacts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className={styles.secondaryText}>
+                    No contacts yet.
+                  </td>
+                </tr>
+              ) : (
+                contacts.map((contact) => (
+                  <tr key={contact.id}>
+                    <td className={styles.contactName}>
+                      {formatContactName(contact.firstName, contact.lastName)}
+                    </td>
+                    <td className={styles.secondaryText}>
+                      {contact.clientName}
+                    </td>
+                    <td className={styles.secondaryText}>{contact.email}</td>
+                    <td className={styles.secondaryText}>{contact.role}</td>
+                    <td>
+                      <span
+                        className={`${styles.badge} ${
+                          contact.status === "Active"
+                            ? styles.badgeActive
+                            : styles.badgeInactive
+                        }`}
+                      >
+                        {contact.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className={styles.actionButtons}>
+                        <Link
+                          href={`/contacts/${contact.slug}`}
+                          className={styles.actionButton}
+                        >
+                          View →
+                        </Link>
+                        <button
+                          type="button"
+                          className={styles.actionButton}
+                          onClick={() => openEditModal(contact)}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -305,28 +352,28 @@ export default function ContactsPage() {
                 <select
                   id="contact-client"
                   className={styles.select}
-                  value={form.client}
+                  value={form.clientId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      client: event.target.value,
+                      clientId: event.target.value,
                     }))
                   }
-                  aria-invalid={Boolean(errors.client)}
+                  aria-invalid={Boolean(errors.clientId)}
                   aria-describedby={
-                    errors.client ? "contact-client-error" : undefined
+                    errors.clientId ? "contact-client-error" : undefined
                   }
                 >
                   <option value="">Select a client</option>
-                  {clientOptions.map((client) => (
-                    <option key={client} value={client}>
-                      {client}
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
                     </option>
                   ))}
                 </select>
-                {errors.client && (
+                {errors.clientId && (
                   <p id="contact-client-error" className={styles.error}>
-                    {errors.client}
+                    {errors.clientId}
                   </p>
                 )}
               </div>
@@ -405,15 +452,27 @@ export default function ContactsPage() {
                 </select>
               </div>
 
+              {formError && (
+                <p role="alert" className={styles.error}>
+                  {formError}
+                </p>
+              )}
+
               <div className={styles.modalActions}>
                 <button
                   type="button"
                   className={styles.cancelButton}
                   onClick={closeModal}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
-                <button type="submit" className={styles.submitButton}>
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                >
                   {formMode === "add" ? "Add Contact" : "Save Changes"}
                 </button>
               </div>
