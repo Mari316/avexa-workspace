@@ -1,3 +1,60 @@
+# Avexa Workspace
+
+## Local database (PostgreSQL + Drizzle)
+
+The Avexa UI still persists everything in `localStorage`. The database below is groundwork
+only — nothing in the application reads from or writes to PostgreSQL yet.
+
+### One-time setup
+
+```sh
+cp apps/web/.env.example apps/web/.env
+```
+
+`DATABASE_URL` is the only variable required, and its default matches `compose.yaml`:
+
+```text
+DATABASE_URL=postgresql://avexa:avexa@localhost:5432/avexa
+```
+
+### Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run db:up` | Starts PostgreSQL 17 from `compose.yaml` and waits until it is healthy. |
+| `npm run db:down` | Stops PostgreSQL. Data survives in the `avexa-postgres-data` volume. |
+| `npm run db:migrate` | Applies committed SQL migrations from `apps/web/server/db/migrations`. |
+| `npm run db:seed` | Upserts the deterministic client seed. Safe to run repeatedly. |
+| `npm run db:generate` | Regenerates migration SQL after editing the Drizzle schema. |
+
+Typical first run:
+
+```sh
+npm run db:up
+npm run db:migrate
+npm run db:seed
+```
+
+`npm run db:seed` is idempotent: it upserts on the client slug, so running it once or
+five times leaves the same four clients with the same ids.
+
+### Layout
+
+| Path | Responsibility |
+| --- | --- |
+| `compose.yaml` | Local PostgreSQL for development. |
+| `apps/web/drizzle.config.ts` | Drizzle Kit configuration (schema location, migration output). |
+| `apps/web/server/db/index.ts` | Single `pg` connection pool plus the Drizzle client. |
+| `apps/web/server/db/schema/` | Table definitions; the source of truth for migrations. |
+| `apps/web/server/db/migrations/` | Committed, reviewable SQL migrations. Do not edit applied files. |
+| `apps/web/server/db/migrate.ts` | Migration runner. |
+| `apps/web/server/seed/seed.ts` | Deterministic seed derived from `apps/web/lib/mockData.ts`. |
+
+Editing the schema means editing `apps/web/server/db/schema/`, then running
+`npm run db:generate` and committing the generated SQL.
+
+---
+
 # Turborepo starter
 
 This Turborepo starter is maintained by the Turborepo core team.
