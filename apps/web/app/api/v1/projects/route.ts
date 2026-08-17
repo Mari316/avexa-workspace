@@ -10,11 +10,13 @@ import {
   listProjects,
 } from "../../../../server/projects/project.service";
 import {
-  UnauthorizedError,
-  requireUser,
-} from "../../../../server/auth/require-user";
+  ForbiddenError,
+  requirePermission,
+} from "../../../../server/auth/require-permission";
+import { UnauthorizedError } from "../../../../server/auth/require-user";
 import {
   errorResponse,
+  forbiddenResponse,
   internalErrorResponse,
   unauthorizedResponse,
   validationErrorResponse,
@@ -25,7 +27,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(): Promise<NextResponse> {
   try {
-    await requireUser();
+    await requirePermission("projects:read");
     const rows = await listProjects();
 
     return NextResponse.json({ data: rows.map(toProjectDTO) });
@@ -34,19 +36,27 @@ export async function GET(): Promise<NextResponse> {
       return unauthorizedResponse();
     }
 
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
+    }
+
     return internalErrorResponse("GET /api/v1/projects", error);
   }
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
-    await requireUser();
+    await requirePermission("projects:create");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
     }
 
-    return internalErrorResponse("requireUser", error);
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
+    }
+
+    return internalErrorResponse("requirePermission", error);
   }
 
   let body: unknown;
@@ -71,10 +81,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 201, headers: { Location: `/api/v1/projects/${row.slug}` } },
     );
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return unauthorizedResponse();
-    }
-
     if (error instanceof ProjectNameNotSluggableError) {
       return errorResponse(
         400,

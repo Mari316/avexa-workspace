@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { useCanMutateLocalDemo } from "../../../lib/auth/use-permission";
 
 import styles from "./page.module.css";
 
@@ -180,6 +181,7 @@ function validateForm(
 }
 
 export default function TeamPage() {
+  const canMutateLocal = useCanMutateLocalDemo();
   const [members, setMembers] = useState<TeamMember[]>(initialTeamMembers);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -315,13 +317,15 @@ export default function TeamPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.addButton}
-            onClick={openAddModal}
-          >
-            + Add Team Member
-          </button>
+          {canMutateLocal && (
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={openAddModal}
+            >
+              + Add Team Member
+            </button>
+          )}
         </div>
 
         {showSuccessBanner && (
@@ -365,28 +369,32 @@ export default function TeamPage() {
                     </span>
                   </td>
                   <td>
-                    <div className={styles.actionButtons}>
-                      <button
-                        type="button"
-                        className={styles.actionButton}
-                        onClick={() => openEditModal(member)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className={`${styles.actionButton} ${styles.deleteButton}`}
-                        onClick={() => setDeleteMemberId(member.id)}
-                        disabled={member.isCurrentUser}
-                        title={
-                          member.isCurrentUser
-                            ? "You cannot delete your own account."
-                            : undefined
-                        }
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    {canMutateLocal ? (
+                      <div className={styles.actionButtons}>
+                        <button
+                          type="button"
+                          className={styles.actionButton}
+                          onClick={() => openEditModal(member)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className={`${styles.actionButton} ${styles.deleteButton}`}
+                          onClick={() => setDeleteMemberId(member.id)}
+                          disabled={member.isCurrentUser}
+                          title={
+                            member.isCurrentUser
+                              ? "You cannot delete your own account."
+                              : undefined
+                          }
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={styles.secondaryText}>—</span>
+                    )}
                   </td>
                 </tr>
               ))}

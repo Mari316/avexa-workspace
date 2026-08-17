@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
 import { useAppData, type ClientView } from "../../../context/AppDataContext";
+import { usePermission } from "../../../lib/auth/use-permission";
 import { ApiError } from "../../../lib/api/request";
 import {
   formatContactName,
@@ -83,6 +84,8 @@ export default function ClientsPage() {
     addClient,
     updateClient,
   } = useAppData();
+  const canCreateClient = usePermission("clients:create");
+  const canUpdateClient = usePermission("clients:update");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
   const [editingClientSlug, setEditingClientSlug] = useState<string | null>(
@@ -198,13 +201,15 @@ export default function ClientsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.addButton}
-            onClick={openAddModal}
-          >
-            + Add Client
-          </button>
+          {canCreateClient && (
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={openAddModal}
+            >
+              + Add Client
+            </button>
+          )}
         </div>
 
         <div className={styles.card}>
@@ -285,13 +290,15 @@ export default function ClientsPage() {
                           >
                             View →
                           </Link>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => openEditModal(client)}
-                          >
-                            Edit
-                          </button>
+                          {canUpdateClient && (
+                            <button
+                              type="button"
+                              className={styles.actionButton}
+                              onClick={() => openEditModal(client)}
+                            >
+                              Edit
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 
 import { useAppData } from "../../../context/AppDataContext";
+import { useCanMutateLocalDemo } from "../../../lib/auth/use-permission";
 
 import styles from "./page.module.css";
 
@@ -157,6 +158,7 @@ function validateForm(form: ResourceFormData): FormErrors {
 
 export default function ResourcesPage() {
   const { clients, projects } = useAppData();
+  const canMutateLocal = useCanMutateLocalDemo();
   const [resources, setResources] = useState<Resource[]>(initialResources);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ResourceFormData>(emptyForm);
@@ -213,13 +215,15 @@ export default function ResourcesPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.addButton}
-            onClick={openModal}
-          >
-            + Add Resource
-          </button>
+          {canMutateLocal && (
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={openModal}
+            >
+              + Add Resource
+            </button>
+          )}
         </div>
 
         <div className={styles.card}>

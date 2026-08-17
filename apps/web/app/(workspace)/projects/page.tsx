@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import { useAppData } from "../../../context/AppDataContext";
+import { usePermission } from "../../../lib/auth/use-permission";
 import { ApiError } from "../../../lib/api/request";
 import { type ProjectStatus } from "../../../lib/mockData";
 
@@ -92,6 +93,7 @@ export default function ProjectsPage() {
     projectsError,
     addProject,
   } = useAppData();
+  const canCreateProject = usePermission("projects:create");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ProjectFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -158,13 +160,15 @@ export default function ProjectsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.addButton}
-            onClick={openModal}
-          >
-            + Add Project
-          </button>
+          {canCreateProject && (
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={openModal}
+            >
+              + Add Project
+            </button>
+          )}
         </div>
 
         {projectsError ? (

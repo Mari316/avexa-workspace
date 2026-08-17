@@ -12,11 +12,13 @@ import {
   updateTaskBySlug,
 } from "../../../../../server/tasks/task.service";
 import {
-  UnauthorizedError,
-  requireUser,
-} from "../../../../../server/auth/require-user";
+  ForbiddenError,
+  requirePermission,
+} from "../../../../../server/auth/require-permission";
+import { UnauthorizedError } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
+  forbiddenResponse,
   internalErrorResponse,
   unauthorizedResponse,
   validationErrorResponse,
@@ -44,13 +46,17 @@ export async function GET(
   }
 
   try {
-    await requireUser();
+    await requirePermission("tasks:read");
     const row = await getTaskBySlug(slug);
 
     return row ? NextResponse.json({ data: toTaskDTO(row) }) : taskNotFound();
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
+    }
+
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
     }
 
     return internalErrorResponse(`GET /api/v1/tasks/${slug}`, error);
@@ -68,13 +74,17 @@ export async function PATCH(
   }
 
   try {
-    await requireUser();
+    await requirePermission("tasks:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
     }
 
-    return internalErrorResponse("requireUser", error);
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
+    }
+
+    return internalErrorResponse("requirePermission", error);
   }
 
   let body: unknown;
@@ -96,10 +106,6 @@ export async function PATCH(
 
     return row ? NextResponse.json({ data: toTaskDTO(row) }) : taskNotFound();
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return unauthorizedResponse();
-    }
-
     if (error instanceof ProjectNotFoundError) {
       return errorResponse(400, "PROJECT_NOT_FOUND", "The selected project does not exist.");
     }
@@ -119,13 +125,17 @@ export async function DELETE(
   }
 
   try {
-    await requireUser();
+    await requirePermission("tasks:delete");
     const deleted = await deleteTaskBySlug(slug);
 
     return deleted ? new NextResponse(null, { status: 204 }) : taskNotFound();
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
+    }
+
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
     }
 
     return internalErrorResponse(`DELETE /api/v1/tasks/${slug}`, error);

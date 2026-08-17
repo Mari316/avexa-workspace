@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import { useAppData, type ContactView } from "../../../context/AppDataContext";
+import { usePermission } from "../../../lib/auth/use-permission";
 import { ApiError } from "../../../lib/api/request";
 import { formatContactName, type ContactStatus } from "../../../lib/mockData";
 
@@ -93,6 +94,8 @@ export default function ContactsPage() {
     addContact,
     updateContact,
   } = useAppData();
+  const canCreateContact = usePermission("contacts:create");
+  const canUpdateContact = usePermission("contacts:update");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
   const [editingContactSlug, setEditingContactSlug] = useState<string | null>(
@@ -190,13 +193,15 @@ export default function ContactsPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.addButton}
-            onClick={openAddModal}
-          >
-            + Add Contact
-          </button>
+          {canCreateContact && (
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={openAddModal}
+            >
+              + Add Contact
+            </button>
+          )}
         </div>
 
         <div className={styles.card}>
@@ -254,20 +259,22 @@ export default function ContactsPage() {
                     </td>
                     <td>
                       <div className={styles.actionButtons}>
-                        <Link
-                          href={`/contacts/${contact.slug}`}
-                          className={styles.actionButton}
-                        >
-                          View →
-                        </Link>
-                        <button
-                          type="button"
-                          className={styles.actionButton}
-                          onClick={() => openEditModal(contact)}
-                        >
-                          Edit
-                        </button>
-                      </div>
+                          <Link
+                            href={`/contacts/${contact.slug}`}
+                            className={styles.actionButton}
+                          >
+                            View →
+                          </Link>
+                          {canUpdateContact && (
+                            <button
+                              type="button"
+                              className={styles.actionButton}
+                              onClick={() => openEditModal(contact)}
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </div>
                     </td>
                   </tr>
                 ))

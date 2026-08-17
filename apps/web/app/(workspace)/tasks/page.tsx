@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { useAppData, type TaskView } from "../../../context/AppDataContext";
+import { usePermission } from "../../../lib/auth/use-permission";
 import { ApiError } from "../../../lib/api/request";
 import { consumeDeleteSuccessMessage } from "../../../lib/deletedTasks";
 import { notifyTaskCreated } from "../../../lib/mockNotifications";
@@ -187,6 +188,7 @@ export default function TasksPage() {
     addTask,
     getProjectsByClientId,
   } = useAppData();
+  const canCreateTask = usePermission("tasks:create");
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -287,13 +289,15 @@ export default function TasksPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.addButton}
-            onClick={openModal}
-          >
-            + Add Task
-          </button>
+          {canCreateTask && (
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={openModal}
+            >
+              + Add Task
+            </button>
+          )}
         </div>
 
         {showSuccessBanner && (

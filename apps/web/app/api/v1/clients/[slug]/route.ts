@@ -12,11 +12,13 @@ import {
   updateClientBySlug,
 } from "../../../../../server/clients/client.service";
 import {
-  UnauthorizedError,
-  requireUser,
-} from "../../../../../server/auth/require-user";
+  ForbiddenError,
+  requirePermission,
+} from "../../../../../server/auth/require-permission";
+import { UnauthorizedError } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
+  forbiddenResponse,
   internalErrorResponse,
   unauthorizedResponse,
   validationErrorResponse,
@@ -42,13 +44,17 @@ export async function GET(_request: Request, context: RouteContext): Promise<Nex
   }
 
   try {
-    await requireUser();
+    await requirePermission("clients:read");
     const row = await getClientBySlug(slug);
 
     return row ? NextResponse.json({ data: toClientDTO(row) }) : clientNotFound();
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
+    }
+
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
     }
 
     return internalErrorResponse(`GET /api/v1/clients/${slug}`, error);
@@ -63,13 +69,17 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
   }
 
   try {
-    await requireUser();
+    await requirePermission("clients:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
     }
 
-    return internalErrorResponse("requireUser", error);
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
+    }
+
+    return internalErrorResponse("requirePermission", error);
   }
 
   let body: unknown;
@@ -91,10 +101,6 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
 
     return row ? NextResponse.json({ data: toClientDTO(row) }) : clientNotFound();
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return unauthorizedResponse();
-    }
-
     if (error instanceof PrimaryContactNotFoundError) {
       return errorResponse(
         400,

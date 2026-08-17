@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { useAppData } from "../../../context/AppDataContext";
+import { useCanMutateLocalDemo } from "../../../lib/auth/use-permission";
 
 import styles from "./page.module.css";
 
@@ -164,6 +165,7 @@ function noteToFormData(note: Note): NoteFormData {
 
 export default function NotesPage() {
   const { clients, projects } = useAppData();
+  const canMutateLocal = useCanMutateLocalDemo();
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -307,13 +309,15 @@ export default function NotesPage() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.addButton}
-            onClick={openAddModal}
-          >
-            + Add Note
-          </button>
+          {canMutateLocal && (
+            <button
+              type="button"
+              className={styles.addButton}
+              onClick={openAddModal}
+            >
+              + Add Note
+            </button>
+          )}
         </div>
 
         {showSuccessBanner && (
@@ -361,20 +365,24 @@ export default function NotesPage() {
                 </span>
 
                 <div className={styles.cardActions}>
-                  <button
-                    type="button"
-                    className={styles.actionButton}
-                    onClick={() => openEditModal(note)}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.actionButton} ${styles.deleteButton}`}
-                    onClick={() => setDeleteNoteId(note.id)}
-                  >
-                    Delete
-                  </button>
+                  {canMutateLocal && (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.actionButton}
+                        onClick={() => openEditModal(note)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.actionButton} ${styles.deleteButton}`}
+                        onClick={() => setDeleteNoteId(note.id)}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </article>

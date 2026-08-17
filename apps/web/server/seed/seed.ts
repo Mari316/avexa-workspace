@@ -202,18 +202,26 @@ export async function seedTasksTable(): Promise<void> {
 
 /**
  * Creates Better Auth credential users using the library's own password hasher.
- * Skips users that already exist so repeat seeds do not churn hashes/timestamps.
+ * Existing users keep their password hashes; role is upserted so repeat seeds
+ * stay idempotent and match the deterministic RBAC assignments.
  * Public sign-up remains disabled in auth config — only this seed creates users.
  */
 export async function seedAuthUsers(): Promise<void> {
   for (const seedUser of seedUsers) {
     const [existing] = await db
-      .select({ id: user.id })
+      .select({ id: user.id, role: user.role })
       .from(user)
       .where(eq(user.email, seedUser.email))
       .limit(1);
 
     if (existing) {
+      if (existing.role !== seedUser.role) {
+        await db
+          .update(user)
+          .set({ role: seedUser.role, updatedAt: new Date() })
+          .where(eq(user.id, existing.id));
+      }
+
       continue;
     }
 
@@ -225,6 +233,7 @@ export async function seedAuthUsers(): Promise<void> {
       name: seedUser.name,
       email: seedUser.email,
       emailVerified: true,
+      role: seedUser.role,
       createdAt: now,
       updatedAt: now,
     });
@@ -271,6 +280,9 @@ async function main(): Promise<void> {
     .select({ total: sql<number>`count(*)::int` })
     .from(account)
     .where(eq(account.providerId, "credential"));
+  const roleRows = await db
+    .select({ email: user.email, role: user.role })
+    .from(user);
 
   console.log(
     `Seed complete. clients=${clientTotals?.total ?? 0} ` +
@@ -280,6 +292,9 @@ async function main(): Promise<void> {
       `tasks=${taskTotals?.total ?? 0}, ` +
       `users=${userTotals?.total ?? 0} ` +
       `(credential accounts: ${credentialTotals?.total ?? 0}).`,
+  );
+  console.log(
+    `Roles: ${roleRows.map((row) => `${row.email}=${row.role}`).join(", ")}`,
   );
 }
 

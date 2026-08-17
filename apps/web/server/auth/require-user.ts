@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 
+import { isRole, type Role } from "../../lib/auth/permissions";
 import { auth, type AuthUser } from "./auth";
 
 export class UnauthorizedError extends Error {
@@ -13,6 +14,7 @@ export type SafeUser = {
   id: string;
   name: string;
   email: string;
+  role: Role;
 };
 
 function toSafeUser(user: AuthUser): SafeUser {
@@ -20,6 +22,8 @@ function toSafeUser(user: AuthUser): SafeUser {
     id: user.id,
     name: user.name,
     email: user.email,
+    // DB CHECK + seed keep roles valid; fall back to least privilege if corrupt.
+    role: isRole(user.role) ? user.role : "viewer",
   };
 }
 

@@ -11,11 +11,13 @@ import {
   updateProjectBySlug,
 } from "../../../../../server/projects/project.service";
 import {
-  UnauthorizedError,
-  requireUser,
-} from "../../../../../server/auth/require-user";
+  ForbiddenError,
+  requirePermission,
+} from "../../../../../server/auth/require-permission";
+import { UnauthorizedError } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
+  forbiddenResponse,
   internalErrorResponse,
   unauthorizedResponse,
   validationErrorResponse,
@@ -43,13 +45,17 @@ export async function GET(
   }
 
   try {
-    await requireUser();
+    await requirePermission("projects:read");
     const row = await getProjectBySlug(slug);
 
     return row ? NextResponse.json({ data: toProjectDTO(row) }) : projectNotFound();
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
+    }
+
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
     }
 
     return internalErrorResponse(`GET /api/v1/projects/${slug}`, error);
@@ -67,13 +73,17 @@ export async function PATCH(
   }
 
   try {
-    await requireUser();
+    await requirePermission("projects:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
     }
 
-    return internalErrorResponse("requireUser", error);
+    if (error instanceof ForbiddenError) {
+      return forbiddenResponse();
+    }
+
+    return internalErrorResponse("requirePermission", error);
   }
 
   let body: unknown;
@@ -95,10 +105,6 @@ export async function PATCH(
 
     return row ? NextResponse.json({ data: toProjectDTO(row) }) : projectNotFound();
   } catch (error) {
-    if (error instanceof UnauthorizedError) {
-      return unauthorizedResponse();
-    }
-
     if (error instanceof ClientNotFoundError) {
       return errorResponse(400, "CLIENT_NOT_FOUND", "The selected client does not exist.");
     }

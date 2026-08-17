@@ -3,6 +3,8 @@
  * the server seed does not depend on frontend display types that diverge from DTOs.
  */
 
+import type { Role } from "../../lib/auth/permissions";
+
 export type SeedClientStatus = "Active" | "On Hold";
 export type SeedContactStatus = "Active" | "Inactive";
 export type SeedProjectStatus = "Active" | "On Hold";
@@ -104,6 +106,7 @@ export type SeedUser = {
   id: string;
   name: string;
   email: string;
+  role: Role;
 };
 
 export const seedUsers: SeedUser[] = [
@@ -111,16 +114,19 @@ export const seedUsers: SeedUser[] = [
     id: "seed-user-mari-000000000001",
     name: "Mari Astapova",
     email: "mari@avexa.test",
+    role: "admin",
   },
   {
     id: "seed-user-chris-000000000002",
     name: "Chris Miller",
     email: "chris@avexa.test",
+    role: "qa_engineer",
   },
   {
     id: "seed-user-alex-000000000003",
     name: "Alex Brown",
     email: "alex@avexa.test",
+    role: "viewer",
   },
 ];
 

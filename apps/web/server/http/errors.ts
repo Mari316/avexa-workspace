@@ -4,6 +4,7 @@ import type { ZodError } from "zod";
 export type ApiErrorCode =
   | "VALIDATION_ERROR"
   | "UNAUTHORIZED"
+  | "FORBIDDEN"
   | "CLIENT_NAME_NOT_SLUGGABLE"
   | "CLIENT_NOT_FOUND"
   | "CLIENT_SLUG_CONFLICT"
@@ -52,4 +53,12 @@ export function internalErrorResponse(context: string, error: unknown): NextResp
 
 export function unauthorizedResponse(): NextResponse {
   return errorResponse(401, "UNAUTHORIZED", "Authentication required.");
+}
+
+export function forbiddenResponse(): NextResponse {
+  return errorResponse(
+    403,
+    "FORBIDDEN",
+    "You do not have permission to perform this action.",
+  );
 }

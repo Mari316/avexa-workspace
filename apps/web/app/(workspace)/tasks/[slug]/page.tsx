@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { useAppData, type TaskView } from "../../../../context/AppDataContext";
+import { usePermission } from "../../../../lib/auth/use-permission";
 import { ApiError } from "../../../../lib/api/request";
 import { markTaskDeleteSuccess } from "../../../../lib/deletedTasks";
 import { notifyTaskUpdated } from "../../../../lib/mockNotifications";
@@ -116,6 +117,8 @@ export default function TaskDetailsPage() {
     isLoadingTasks,
     isLoadingProjects,
   } = useAppData();
+  const canUpdateTask = usePermission("tasks:update");
+  const canDeleteTask = usePermission("tasks:delete");
   const task = getTaskBySlug(slug);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -271,23 +274,27 @@ export default function TaskDetailsPage() {
             </div>
 
             <div className={styles.actionButtons}>
-              <button
-                type="button"
-                className={styles.editButton}
-                onClick={openModal}
-              >
-                Edit Task
-              </button>
-              <button
-                type="button"
-                className={styles.deleteButton}
-                onClick={() => {
-                  setDeleteError("");
-                  setIsDeleteModalOpen(true);
-                }}
-              >
-                Delete Task
-              </button>
+              {canUpdateTask && (
+                <button
+                  type="button"
+                  className={styles.editButton}
+                  onClick={openModal}
+                >
+                  Edit Task
+                </button>
+              )}
+              {canDeleteTask && (
+                <button
+                  type="button"
+                  className={styles.deleteButton}
+                  onClick={() => {
+                    setDeleteError("");
+                    setIsDeleteModalOpen(true);
+                  }}
+                >
+                  Delete Task
+                </button>
+              )}
             </div>
           </div>
 
