@@ -1,5 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { hashPassword } from "better-auth/crypto";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { closeDatabase, db } from "../db";
 import {
@@ -298,9 +300,15 @@ async function main(): Promise<void> {
   );
 }
 
-main()
-  .catch((error: unknown) => {
-    console.error("Seed failed:", error);
-    process.exitCode = 1;
-  })
-  .finally(closeDatabase);
+const isDirectRun =
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isDirectRun) {
+  main()
+    .catch((error: unknown) => {
+      console.error("Seed failed:", error);
+      process.exitCode = 1;
+    })
+    .finally(closeDatabase);
+}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
-  "globalEnv": ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL"],
+  "globalEnv": ["DATABASE_URL", "BETTER_AUTH_SECRET", "BETTER_AUTH_URL", "ALLOW_TEST_DB_MUTATION", "AVEXA_PLAYWRIGHT"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

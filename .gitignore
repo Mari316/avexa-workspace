@@ -7,6 +7,7 @@ node_modules
 
 # Local env files
 .env
+.env.test
 .env.local
 .env.development.local
 .env.test.local
@@ -27,6 +28,7 @@ playwright/.auth/
 
 # Build Outputs
 .next/
+.next-test/
 out/
 build
 dist

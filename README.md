@@ -2,8 +2,16 @@
 
 ## Local database (PostgreSQL + Drizzle)
 
-The Avexa UI still persists everything in `localStorage`. The database below is groundwork
-only — nothing in the application reads from or writes to PostgreSQL yet.
+Avexa persists Clients, Contacts, Projects, and Tasks in PostgreSQL via the Next.js
+REST API. Local preference pages (Notes / Resources / Team / Settings) may still use
+in-memory UI state.
+
+Two databases share the same local Postgres container (`compose.yaml`):
+
+| Database | Purpose |
+| --- | --- |
+| `avexa` | Manual development / demo |
+| `avexa_test` | Playwright and `db:test:*` tooling only |
 
 ### One-time setup
 
@@ -11,11 +19,14 @@ only — nothing in the application reads from or writes to PostgreSQL yet.
 cp apps/web/.env.example apps/web/.env
 ```
 
-`DATABASE_URL` is the only variable required, and its default matches `compose.yaml`:
+`DATABASE_URL` for development matches `compose.yaml`:
 
 ```text
 DATABASE_URL=postgresql://avexa:avexa@localhost:5432/avexa
 ```
+
+Optional test overrides: copy `apps/web/.env.test.example` to `apps/web/.env.test`
+(gitignored). Defaults already target `avexa_test`.
 
 ### Commands
 
@@ -23,11 +34,17 @@ DATABASE_URL=postgresql://avexa:avexa@localhost:5432/avexa
 | --- | --- |
 | `npm run db:up` | Starts PostgreSQL 17 from `compose.yaml` and waits until it is healthy. |
 | `npm run db:down` | Stops PostgreSQL. Data survives in the `avexa-postgres-data` volume. |
-| `npm run db:migrate` | Applies committed SQL migrations from `apps/web/server/db/migrations`. |
-| `npm run db:seed` | Upserts the deterministic client seed. Safe to run repeatedly. |
+| `npm run db:migrate` | Applies migrations to the **development** DB (`avexa`). |
+| `npm run db:seed` | Upserts the deterministic seed into **development** (`avexa`). |
 | `npm run db:generate` | Regenerates migration SQL after editing the Drizzle schema. |
+| `npm run db:test:ensure` | Creates `avexa_test` if missing (same Postgres container). |
+| `npm run db:test:migrate` | Applies migrations `0000–0006` to `avexa_test`. |
+| `npm run db:test:seed` | Seeds `avexa_test` (upsert only; does not delete leftovers). |
+| `npm run db:test:reset` | Guarded truncate of test data + reseed baseline on `avexa_test`. |
+| `npm run db:test:prepare` | Ensure + migrate + **clean** reset/seed (exact baseline). |
+| `npm run test:e2e` | `db:test:prepare` then Playwright (test server on port 3001 → `avexa_test`). |
 
-Typical first run:
+Typical first development run:
 
 ```sh
 npm run db:up
@@ -35,18 +52,31 @@ npm run db:migrate
 npm run db:seed
 ```
 
-`npm run db:seed` is idempotent: it upserts on the client slug, so running it once or
-five times leaves the same four clients with the same ids.
+`npm run db:seed` is idempotent for known seed rows. It does **not** remove rows
+created by failed tests — use `db:test:prepare` / `db:test:reset` on `avexa_test`.
+
+### End-to-end tests
+
+```sh
+npm run test:e2e
+```
+
+This rebuilds a clean `avexa_test` baseline, starts a dedicated Next.js server on
+port **3001** pointed at `avexa_test` (not your manual `:3000` / `avexa` session),
+logs in Mari/Chris/Alex, and runs Playwright. The test server uses a separate
+`.next-test` build directory so it can run alongside a normal `npm run dev`.
+
+Destructive test DB helpers refuse to run against `avexa`.
 
 ### Authentication (Better Auth)
 
 Local demo users (shared development password `Password123!` — never a production secret):
 
-| Email | Name |
-| --- | --- |
-| `mari@avexa.test` | Mari Astapova |
-| `chris@avexa.test` | Chris Miller |
-| `alex@avexa.test` | Alex Brown |
+| Email | Name | Role |
+| --- | --- | --- |
+| `mari@avexa.test` | Mari Astapova | admin |
+| `chris@avexa.test` | Chris Miller | qa_engineer |
+| `alex@avexa.test` | Alex Brown | viewer |
 
 Required env vars (see `apps/web/.env.example`): `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
 
@@ -61,8 +91,10 @@ Public sign-up is disabled. Users are created only by the seed script using Bett
 | `apps/web/server/db/index.ts` | Single `pg` connection pool plus the Drizzle client. |
 | `apps/web/server/db/schema/` | Table definitions; the source of truth for migrations. |
 | `apps/web/server/db/migrations/` | Committed, reviewable SQL migrations. Do not edit applied files. |
-| `apps/web/server/db/migrate.ts` | Migration runner. |
-| `apps/web/server/seed/seed.ts` | Deterministic seed derived from `apps/web/lib/mockData.ts`. |
+| `apps/web/server/db/migrate.ts` | Development migration runner. |
+| `apps/web/server/db/test/` | `avexa_test` ensure / migrate / reset / prepare tooling. |
+| `apps/web/server/seed/seed.ts` | Deterministic seed data. |
+| `playwright/support/db/` | Guarded targeted cleanup for Playwright teardowns. |
 
 Editing the schema means editing `apps/web/server/db/schema/`, then running
 `npm run db:generate` and committing the generated SQL.

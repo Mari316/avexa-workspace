@@ -5,13 +5,19 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
+    "dev:test": "AVEXA_PLAYWRIGHT=1 next dev --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file=.env server/db/migrate.ts",
-    "db:seed": "tsx --env-file=.env server/seed/seed.ts"
+    "db:seed": "tsx --env-file=.env server/seed/seed.ts",
+    "db:test:ensure": "tsx server/db/test/ensure-test-database.ts",
+    "db:test:migrate": "tsx server/db/test/migrate-test-database.ts",
+    "db:test:seed": "tsx server/db/test/seed-test-database.ts",
+    "db:test:reset": "tsx server/db/test/reset-test-database.ts",
+    "db:test:prepare": "tsx server/db/test/prepare-test-database.ts"
   },
   "dependencies": {
     "@repo/ui": "*",

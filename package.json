@@ -7,12 +7,17 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "test:e2e": "npm run test -w @avexa/playwright",
+    "test:e2e": "npm run db:test:prepare && npm run test -w @avexa/playwright",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:generate": "npm run db:generate -w web",
     "db:migrate": "npm run db:migrate -w web",
-    "db:seed": "npm run db:seed -w web"
+    "db:seed": "npm run db:seed -w web",
+    "db:test:ensure": "npm run db:test:ensure -w web",
+    "db:test:migrate": "npm run db:test:migrate -w web",
+    "db:test:seed": "npm run db:test:seed -w web",
+    "db:test:reset": "npm run db:test:reset -w web",
+    "db:test:prepare": "npm run db:test:prepare -w web"
   },
   "devDependencies": {
     "prettier": "^3.7.4",
