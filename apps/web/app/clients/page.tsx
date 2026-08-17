@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
 
-import { useAppData } from "../../context/AppDataContext";
+import { useAppData, type ClientView } from "../../context/AppDataContext";
+import { ClientApiError } from "../../lib/api/clients";
 import {
   formatContactName,
-  getClientSlug,
   resolveClientPrimaryContact,
-  type Client,
   type ClientStatus,
 } from "../../lib/mockData";
 
@@ -53,13 +52,44 @@ function validateForm(
   return errors;
 }
 
+function toFormErrorMessage(error: unknown): string {
+  if (error instanceof ClientApiError) {
+    switch (error.code) {
+      case "CLIENT_SLUG_CONFLICT":
+        return "A client with this name already exists.";
+      case "CLIENT_NAME_NOT_SLUGGABLE":
+        return "Enter a client name containing letters or numbers.";
+      case "VALIDATION_ERROR":
+        return "Please check the values you entered and try again.";
+      case "NETWORK_ERROR":
+        return "Unable to reach the server. Please try again.";
+      default:
+        return "Something went wrong. Please try again.";
+    }
+  }
+
+  return "Something went wrong. Please try again.";
+}
+
 export default function ClientsPage() {
-  const { clients, contacts, projects, addClient, updateClient } = useAppData();
+  const {
+    clients,
+    contacts,
+    projects,
+    isLoadingClients,
+    clientsError,
+    addClient,
+    updateClient,
+  } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
-  const [editingClientSlug, setEditingClientSlug] = useState<string | null>(null);
+  const [editingClientSlug, setEditingClientSlug] = useState<string | null>(
+    null,
+  );
   const [form, setForm] = useState<ClientFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const editingClient = editingClientSlug
     ? clients.find((client) => client.slug === editingClientSlug)
@@ -88,10 +118,11 @@ export default function ClientsPage() {
     setEditingClientSlug(null);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
     setIsModalOpen(true);
   }
 
-  function openEditModal(client: Client) {
+  function openEditModal(client: ClientView) {
     setFormMode("edit");
     setEditingClientSlug(client.slug);
     setForm({
@@ -100,6 +131,7 @@ export default function ClientsPage() {
       status: client.status,
     });
     setErrors({});
+    setFormError("");
     setIsModalOpen(true);
   }
 
@@ -109,9 +141,10 @@ export default function ClientsPage() {
     setEditingClientSlug(null);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationErrors = validateForm(
@@ -125,29 +158,27 @@ export default function ClientsPage() {
       return;
     }
 
-    if (formMode === "add") {
-      const newClient: Client = {
-        name: form.name.trim(),
-        slug: getClientSlug(form.name.trim()),
-        projectCount: 0,
-        primaryContactSlug: "",
-        status: form.status,
-      };
+    setFormError("");
+    setIsSaving(true);
 
-      addClient(newClient);
-    } else if (editingClientSlug && editingClient) {
-      const updatedClient: Client = {
-        name: form.name.trim(),
-        slug: editingClient.slug,
-        projectCount: editingClient.projectCount,
-        primaryContactSlug: form.primaryContactSlug,
-        status: form.status,
-      };
+    try {
+      if (formMode === "add") {
+        await addClient({ name: form.name.trim(), status: form.status });
+      } else if (editingClientSlug) {
+        await updateClient(editingClientSlug, {
+          name: form.name.trim(),
+          primaryContactSlug: form.primaryContactSlug,
+          status: form.status,
+        });
+      }
 
-      updateClient(editingClientSlug, updatedClient);
+      // The modal only closes once the API has confirmed the change.
+      closeModal();
+    } catch (error) {
+      setFormError(toFormErrorMessage(error));
+    } finally {
+      setIsSaving(false);
     }
-
-    closeModal();
   }
 
   const selectedPrimaryContact = clientContactsForEdit.find(
@@ -186,57 +217,84 @@ export default function ClientsPage() {
               </tr>
             </thead>
             <tbody>
-              {clients.map((client) => {
-                const primaryContact = resolveClientPrimaryContact(
-                  client,
-                  contacts,
-                );
+              {isLoadingClients && (
+                <tr>
+                  <td colSpan={5} className={styles.secondaryText}>
+                    Loading clients…
+                  </td>
+                </tr>
+              )}
 
-                return (
-                  <tr key={client.slug}>
-                    <td className={styles.clientName}>{client.name}</td>
-                    <td className={styles.secondaryText}>
-                      {formatProjects(projectCountByClient.get(client.name) ?? 0)}
-                    </td>
-                    <td className={styles.secondaryText}>
-                      {primaryContact
-                        ? formatContactName(
-                            primaryContact.firstName,
-                            primaryContact.lastName,
-                          )
-                        : "—"}
-                    </td>
-                    <td>
-                      <span
-                        className={`${styles.badge} ${
-                          client.status === "Active"
-                            ? styles.badgeActive
-                            : styles.badgeOnHold
-                        }`}
-                      >
-                        {client.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className={styles.actionButtons}>
-                        <Link
-                          href={`/clients/${client.slug}`}
-                          className={styles.actionButton}
+              {!isLoadingClients && clientsError && (
+                <tr>
+                  <td colSpan={5} className={styles.error}>
+                    {clientsError}
+                  </td>
+                </tr>
+              )}
+
+              {!isLoadingClients && !clientsError && clients.length === 0 && (
+                <tr>
+                  <td colSpan={5} className={styles.secondaryText}>
+                    No clients yet.
+                  </td>
+                </tr>
+              )}
+
+              {!isLoadingClients &&
+                clients.map((client) => {
+                  const primaryContact = resolveClientPrimaryContact(
+                    client,
+                    contacts,
+                  );
+
+                  return (
+                    <tr key={client.slug}>
+                      <td className={styles.clientName}>{client.name}</td>
+                      <td className={styles.secondaryText}>
+                        {formatProjects(
+                          projectCountByClient.get(client.name) ?? 0,
+                        )}
+                      </td>
+                      <td className={styles.secondaryText}>
+                        {primaryContact
+                          ? formatContactName(
+                              primaryContact.firstName,
+                              primaryContact.lastName,
+                            )
+                          : "—"}
+                      </td>
+                      <td>
+                        <span
+                          className={`${styles.badge} ${
+                            client.status === "Active"
+                              ? styles.badgeActive
+                              : styles.badgeOnHold
+                          }`}
                         >
-                          View →
-                        </Link>
-                        <button
-                          type="button"
-                          className={styles.actionButton}
-                          onClick={() => openEditModal(client)}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          {client.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className={styles.actionButtons}>
+                          <Link
+                            href={`/clients/${client.slug}`}
+                            className={styles.actionButton}
+                          >
+                            View →
+                          </Link>
+                          <button
+                            type="button"
+                            className={styles.actionButton}
+                            onClick={() => openEditModal(client)}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
@@ -271,7 +329,9 @@ export default function ClientsPage() {
                     }))
                   }
                   aria-invalid={Boolean(errors.name)}
-                  aria-describedby={errors.name ? "client-name-error" : undefined}
+                  aria-describedby={
+                    errors.name ? "client-name-error" : undefined
+                  }
                 />
                 {errors.name && (
                   <p id="client-name-error" className={styles.error}>
@@ -357,15 +417,27 @@ export default function ClientsPage() {
                 </select>
               </div>
 
+              {formError && (
+                <p role="alert" className={styles.error}>
+                  {formError}
+                </p>
+              )}
+
               <div className={styles.modalActions}>
                 <button
                   type="button"
                   className={styles.cancelButton}
                   onClick={closeModal}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
-                <button type="submit" className={styles.submitButton}>
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                >
                   {formMode === "add" ? "Add Client" : "Save Changes"}
                 </button>
               </div>

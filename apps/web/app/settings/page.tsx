@@ -386,8 +386,9 @@ export default function SettingsPage() {
                 <div className={styles.resetSection}>
                   <h3 className={styles.resetTitle}>Demo Data</h3>
                   <p className={styles.resetDescription}>
-                    Restore clients, projects, tasks, and contacts to the
-                    original demo seed data.
+                    Restore projects, tasks, and contacts to the original demo
+                    seed data. Clients are stored in the database and are not
+                    affected.
                   </p>
                   <button
                     type="button"

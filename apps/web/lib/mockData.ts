@@ -299,7 +299,7 @@ export function getContactSlug(firstName: string, lastName: string): string {
 }
 
 export function resolveClientPrimaryContact(
-  client: Client,
+  client: { primaryContactSlug: string },
   contacts: Contact[],
 ): Contact | undefined {
   if (!client.primaryContactSlug) {

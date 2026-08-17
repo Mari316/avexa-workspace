@@ -12,16 +12,51 @@ import {
 } from "react";
 
 import {
+  createClient as createClientRequest,
+  listClients as listClientsRequest,
+  updateClient as updateClientRequest,
+  type ClientDTO,
+  type UpdateClientBody,
+} from "../lib/api/clients";
+import {
   clearAppDataStorage,
   getSeedData,
   loadAppData,
   saveAppData,
   type StoredAppData,
 } from "../lib/appDataStorage";
-import type { Client, Contact, Project, Task } from "../lib/mockData";
+import {
+  loadClientPrimaryContacts,
+  resetClientPrimaryContacts,
+  saveClientPrimaryContacts,
+  type ClientPrimaryContacts,
+} from "../lib/clientPrimaryContacts";
+import type { ClientStatus, Contact, Project, Task } from "../lib/mockData";
+
+/**
+ * A client as the UI needs it: the database-backed fields from the API plus the
+ * primary contact, which is still a browser-only relationship until contacts move
+ * to the database.
+ */
+export type ClientView = ClientDTO & {
+  primaryContactSlug: string;
+};
+
+export type ClientCreateInput = {
+  name: string;
+  status: ClientStatus;
+};
+
+export type ClientUpdateInput = {
+  name: string;
+  status: ClientStatus;
+  primaryContactSlug: string;
+};
 
 type AppDataState = {
-  clients: Client[];
+  clients: ClientView[];
+  isLoadingClients: boolean;
+  clientsError: string;
   projects: Project[];
   tasks: Task[];
   contacts: Contact[];
@@ -29,8 +64,8 @@ type AppDataState = {
 };
 
 type AppDataActions = {
-  addClient: (client: Client) => void;
-  updateClient: (slug: string, client: Client) => void;
+  addClient: (input: ClientCreateInput) => Promise<ClientView>;
+  updateClient: (slug: string, input: ClientUpdateInput) => Promise<ClientView>;
   addProject: (project: Project) => void;
   addTask: (task: Task) => void;
   updateTask: (slug: string, task: Task) => void;
@@ -38,10 +73,10 @@ type AppDataActions = {
   addContact: (contact: Contact) => void;
   updateContact: (slug: string, contact: Contact) => void;
   resetDemoData: () => void;
-  getClientBySlug: (slug: string) => Client | undefined;
   getProjectBySlug: (slug: string) => Project | undefined;
   getProjectByName: (name: string) => Project | undefined;
   getTaskBySlug: (slug: string) => Task | undefined;
+  getClientBySlug: (slug: string) => ClientView | undefined;
   getContactBySlug: (slug: string) => Contact | undefined;
   getProjectsByClient: (clientName: string) => Project[];
   getContactsByClient: (clientName: string) => Contact[];
@@ -58,94 +93,167 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const dataRef = useRef(data);
 
+  // Clients come from PostgreSQL, so they start empty rather than from seed data.
+  const [apiClients, setApiClients] = useState<ClientDTO[]>([]);
+  const [primaryContacts, setPrimaryContacts] = useState<ClientPrimaryContacts>(
+    {},
+  );
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
+  const [clientsError, setClientsError] = useState("");
+
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
 
   useEffect(() => {
     setData(loadAppData(seedData));
+    setPrimaryContacts(loadClientPrimaryContacts());
     setIsHydrated(true);
   }, [seedData]);
 
-  const persist = useCallback((updater: (current: StoredAppData) => StoredAppData) => {
-    setData((current) => {
-      const next = updater(current);
-      saveAppData(next);
-      return next;
-    });
+  useEffect(() => {
+    let cancelled = false;
+
+    listClientsRequest()
+      .then((rows) => {
+        if (!cancelled) {
+          setApiClients(rows);
+          setClientsError("");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClientsError("Unable to load clients. Please refresh the page.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingClients(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const clients = useMemo<ClientView[]>(
+    () =>
+      apiClients.map((client) => ({
+        ...client,
+        primaryContactSlug: primaryContacts[client.slug] ?? "",
+      })),
+    [apiClients, primaryContacts],
+  );
+
+  const persist = useCallback(
+    (updater: (current: StoredAppData) => StoredAppData) => {
+      setData((current) => {
+        const next = updater(current);
+        saveAppData(next);
+        return next;
+      });
+    },
+    [],
+  );
+
   const actions = useMemo<AppDataActions>(() => {
-    const addClient = (client: Client) => {
-      persist((current) => {
-        if (current.clients.some((existing) => existing.slug === client.slug)) {
-          return current;
+    /**
+     * Temporary compatibility: projects, tasks and contacts still store their client
+     * as a name string in localStorage, so a rename in PostgreSQL has to be mirrored
+     * into them. This disappears once those domains use database foreign keys.
+     */
+    const cascadeClientRename = (previousName: string, nextName: string) => {
+      persist((current) => ({
+        ...current,
+        projects: current.projects.map((project) =>
+          project.client === previousName
+            ? { ...project, client: nextName }
+            : project,
+        ),
+        tasks: current.tasks.map((task) =>
+          task.client === previousName ? { ...task, client: nextName } : task,
+        ),
+        contacts: current.contacts.map((contact) =>
+          contact.client === previousName
+            ? { ...contact, client: nextName }
+            : contact,
+        ),
+      }));
+    };
+
+    const setPrimaryContactSlug = (clientSlug: string, contactSlug: string) => {
+      setPrimaryContacts((current) => {
+        const next = { ...current };
+
+        if (contactSlug) {
+          next[clientSlug] = contactSlug;
+        } else {
+          delete next[clientSlug];
         }
 
-        return {
-          ...current,
-          clients: [...current.clients, client],
-        };
+        saveClientPrimaryContacts(next);
+
+        return next;
       });
     };
 
-    const updateClient = (slug: string, client: Client) => {
-      persist((current) => {
-        const existingClient = current.clients.find(
-          (currentClient) => currentClient.slug === slug,
+    const addClient = async (input: ClientCreateInput): Promise<ClientView> => {
+      const created = await createClientRequest({
+        name: input.name,
+        status: input.status,
+      });
+
+      setApiClients((current) => [...current, created]);
+
+      return { ...created, primaryContactSlug: "" };
+    };
+
+    const updateClient = async (
+      slug: string,
+      input: ClientUpdateInput,
+    ): Promise<ClientView> => {
+      const existing = apiClients.find((client) => client.slug === slug);
+
+      if (!existing) {
+        throw new Error(`Client "${slug}" is no longer available.`);
+      }
+
+      const changes: UpdateClientBody = {};
+
+      if (input.name !== existing.name) {
+        changes.name = input.name;
+      }
+
+      if (input.status !== existing.status) {
+        changes.status = input.status;
+      }
+
+      let updated = existing;
+
+      // An unchanged name and status would be an empty PATCH body, which the API rejects.
+      if (Object.keys(changes).length > 0) {
+        updated = await updateClientRequest(slug, changes);
+
+        setApiClients((current) =>
+          current.map((client) => (client.slug === slug ? updated : client)),
         );
 
-        if (!existingClient) {
-          return current;
+        if (updated.name !== existing.name) {
+          cascadeClientRename(existing.name, updated.name);
         }
+      }
 
-        const previousName = existingClient.name;
-        const nextName = client.name;
+      setPrimaryContactSlug(slug, input.primaryContactSlug);
 
-        return {
-          ...current,
-          clients: current.clients.map((currentClient) =>
-            currentClient.slug === slug
-              ? {
-                  name: client.name,
-                  slug: currentClient.slug,
-                  projectCount: client.projectCount,
-                  primaryContactSlug: client.primaryContactSlug,
-                  status: client.status,
-                }
-              : currentClient,
-          ),
-          projects:
-            previousName === nextName
-              ? current.projects
-              : current.projects.map((project) =>
-                  project.client === previousName
-                    ? { ...project, client: nextName }
-                    : project,
-                ),
-          tasks:
-            previousName === nextName
-              ? current.tasks
-              : current.tasks.map((task) =>
-                  task.client === previousName
-                    ? { ...task, client: nextName }
-                    : task,
-                ),
-          contacts:
-            previousName === nextName
-              ? current.contacts
-              : current.contacts.map((contact) =>
-                  contact.client === previousName
-                    ? { ...contact, client: nextName }
-                    : contact,
-                ),
-        };
-      });
+      return { ...updated, primaryContactSlug: input.primaryContactSlug };
     };
 
     const addProject = (project: Project) => {
       persist((current) => {
-        if (current.projects.some((existing) => existing.slug === project.slug)) {
+        if (
+          current.projects.some((existing) => existing.slug === project.slug)
+        ) {
           return current;
         }
 
@@ -199,7 +307,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     const addContact = (contact: Contact) => {
       persist((current) => {
-        if (current.contacts.some((existing) => existing.slug === contact.slug)) {
+        if (
+          current.contacts.some((existing) => existing.slug === contact.slug)
+        ) {
           return current;
         }
 
@@ -231,11 +341,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       });
     };
 
+    // Clients live in PostgreSQL and are deliberately left untouched by a demo reset.
     const resetDemoData = () => {
       const seed = getSeedData();
       clearAppDataStorage();
       saveAppData(seed);
       setData(seed);
+      setPrimaryContacts(resetClientPrimaryContacts());
     };
 
     return {
@@ -249,7 +361,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       updateContact,
       resetDemoData,
       getClientBySlug: (slug: string) =>
-        dataRef.current.clients.find((client) => client.slug === slug),
+        clients.find((client) => client.slug === slug),
       getProjectBySlug: (slug: string) =>
         dataRef.current.projects.find((project) => project.slug === slug),
       getProjectByName: (name: string) =>
@@ -259,9 +371,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       getContactBySlug: (slug: string) =>
         dataRef.current.contacts.find((contact) => contact.slug === slug),
       getProjectsByClient: (clientName: string) =>
-        dataRef.current.projects.filter((project) => project.client === clientName),
+        dataRef.current.projects.filter(
+          (project) => project.client === clientName,
+        ),
       getContactsByClient: (clientName: string) =>
-        dataRef.current.contacts.filter((contact) => contact.client === clientName),
+        dataRef.current.contacts.filter(
+          (contact) => contact.client === clientName,
+        ),
       getTasksByProject: (projectName: string) =>
         dataRef.current.tasks.filter((task) => task.project === projectName),
       getProjectNamesByClient: (clientName: string) =>
@@ -269,17 +385,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           .filter((project) => project.client === clientName)
           .map((project) => project.name),
     };
-  }, [persist]);
+  }, [apiClients, clients, persist]);
 
   const state = useMemo(
     () => ({
-      clients: data.clients,
+      clients,
+      isLoadingClients,
+      clientsError,
       projects: data.projects,
       tasks: data.tasks,
       contacts: data.contacts,
       isHydrated,
     }),
-    [data, isHydrated],
+    [clients, clientsError, data, isHydrated, isLoadingClients],
   );
 
   return (
