@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-import { useAppData } from "../../context/AppDataContext";
+import { useAppData, type TaskView } from "../../context/AppDataContext";
+import { ApiError } from "../../lib/api/request";
 import { consumeDeleteSuccessMessage } from "../../lib/deletedTasks";
 import { notifyTaskCreated } from "../../lib/mockNotifications";
 import {
-  getTaskSlug,
-  type Task,
+  formatTaskDueDate,
   type TaskPriority,
   type TaskStatus,
 } from "../../lib/mockData";
@@ -19,14 +19,14 @@ type TaskAssignee = "Mari" | "Chris" | "Alex";
 
 type TaskFilters = {
   search: string;
-  client: string;
+  clientId: string;
   priority: string;
   status: string;
 };
 
 const defaultFilters: TaskFilters = {
   search: "",
-  client: "",
+  clientId: "",
   priority: "",
   status: "",
 };
@@ -43,8 +43,8 @@ const statusOptions: TaskStatus[] = [
 
 type TaskFormData = {
   title: string;
-  client: string;
-  project: string;
+  clientId: string;
+  projectId: string;
   assignee: string;
   dueDate: string;
   priority: TaskPriority;
@@ -53,19 +53,19 @@ type TaskFormData = {
 
 type FormErrors = {
   title?: string;
-  client?: string;
-  project?: string;
+  clientId?: string;
+  projectId?: string;
   assignee?: string;
   dueDate?: string;
 };
 
 const assigneeOptions: TaskAssignee[] = ["Mari", "Chris", "Alex"];
 
-function filterTasks(tasks: Task[], filters: TaskFilters): Task[] {
+function filterTasks(tasks: TaskView[], filters: TaskFilters): TaskView[] {
   const query = filters.search.trim().toLowerCase();
 
   return tasks.filter((task) => {
-    if (filters.client && task.client !== filters.client) {
+    if (filters.clientId && task.clientId !== filters.clientId) {
       return false;
     }
 
@@ -78,8 +78,12 @@ function filterTasks(tasks: Task[], filters: TaskFilters): Task[] {
     }
 
     if (query) {
-      const matchesSearch = [task.title, task.project, task.client, task.assignee]
-        .some((value) => value.toLowerCase().includes(query));
+      const matchesSearch = [
+        task.title,
+        task.projectName,
+        task.clientName,
+        task.assignee,
+      ].some((value) => value.toLowerCase().includes(query));
 
       if (!matchesSearch) {
         return false;
@@ -97,7 +101,7 @@ function formatResultCount(count: number): string {
 function hasActiveFilters(filters: TaskFilters): boolean {
   return Boolean(
     filters.search.trim() ||
-      filters.client ||
+      filters.clientId ||
       filters.priority ||
       filters.status,
   );
@@ -105,8 +109,8 @@ function hasActiveFilters(filters: TaskFilters): boolean {
 
 const emptyForm: TaskFormData = {
   title: "",
-  client: "",
-  project: "",
+  clientId: "",
+  projectId: "",
   assignee: "",
   dueDate: "",
   priority: "Medium",
@@ -127,16 +131,6 @@ const statusBadgeClass: Record<TaskStatus, string> = {
   Done: styles.statusDone,
 };
 
-function formatDueDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function validateForm(form: TaskFormData): FormErrors {
   const errors: FormErrors = {};
 
@@ -144,12 +138,12 @@ function validateForm(form: TaskFormData): FormErrors {
     errors.title = "Task name is required.";
   }
 
-  if (!form.client) {
-    errors.client = "Client is required.";
+  if (!form.clientId) {
+    errors.clientId = "Client is required.";
   }
 
-  if (!form.project) {
-    errors.project = "Project is required.";
+  if (!form.projectId) {
+    errors.projectId = "Project is required.";
   }
 
   if (!form.assignee) {
@@ -163,14 +157,43 @@ function validateForm(form: TaskFormData): FormErrors {
   return errors;
 }
 
+function toFormErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "TASK_SLUG_CONFLICT":
+        return "A task with this title already exists.";
+      case "TASK_TITLE_NOT_SLUGGABLE":
+        return "Enter a task title containing letters or numbers.";
+      case "PROJECT_NOT_FOUND":
+        return "The selected project does not exist.";
+      case "VALIDATION_ERROR":
+        return "Please check the values you entered and try again.";
+      case "NETWORK_ERROR":
+        return "Unable to reach the server. Please try again.";
+      default:
+        return "Something went wrong. Please try again.";
+    }
+  }
+
+  return "Something went wrong. Please try again.";
+}
+
 export default function TasksPage() {
-  const { clients, tasks, addTask, getProjectByName, getProjectNamesByClient } =
-    useAppData();
+  const {
+    clients,
+    tasks,
+    isLoadingTasks,
+    tasksError,
+    addTask,
+    getProjectsByClientId,
+  } = useAppData();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<TaskFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (!consumeDeleteSuccessMessage()) {
@@ -193,8 +216,8 @@ export default function TasksPage() {
 
   const filtersActive = hasActiveFilters(filters);
 
-  const projectOptions = form.client
-    ? getProjectNamesByClient(form.client)
+  const projectOptions = form.clientId
+    ? getProjectsByClientId(form.clientId)
     : [];
 
   function clearFilters() {
@@ -204,42 +227,53 @@ export default function TasksPage() {
   function openModal() {
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
     setIsModalOpen(true);
   }
 
   function closeModal() {
+    if (isSaving) {
+      return;
+    }
+
     setIsModalOpen(false);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationErrors = validateForm(form);
     setErrors(validationErrors);
+    setFormError("");
 
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
-    const selectedProject = getProjectByName(form.project);
+    setIsSaving(true);
 
-    const newTask: Task = {
-      id: `task-${Date.now()}`,
-      slug: getTaskSlug(form.title.trim()),
-      title: form.title.trim(),
-      project: form.project,
-      client: selectedProject?.client ?? form.client,
-      assignee: form.assignee,
-      dueDate: formatDueDate(form.dueDate),
-      priority: form.priority,
-      status: form.status,
-    };
-
-    addTask(newTask);
-    notifyTaskCreated(newTask.title, newTask.slug);
-    closeModal();
+    try {
+      const created = await addTask({
+        title: form.title.trim(),
+        projectId: form.projectId,
+        assignee: form.assignee,
+        dueDate: form.dueDate,
+        priority: form.priority,
+        status: form.status,
+      });
+      notifyTaskCreated(created.title, created.slug);
+      setIsModalOpen(false);
+      setForm(emptyForm);
+      setErrors({});
+      setFormError("");
+    } catch (error) {
+      setFormError(toFormErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -268,6 +302,12 @@ export default function TasksPage() {
           </div>
         )}
 
+        {tasksError ? (
+          <p className={styles.error} role="alert">
+            {tasksError}
+          </p>
+        ) : null}
+
         <div className={styles.controls}>
           <div className={styles.controlsRow}>
             <input
@@ -286,18 +326,18 @@ export default function TasksPage() {
 
             <select
               className={styles.filterSelect}
-              value={filters.client}
+              value={filters.clientId}
               onChange={(event) =>
                 setFilters((currentFilters) => ({
                   ...currentFilters,
-                  client: event.target.value,
+                  clientId: event.target.value,
                 }))
               }
               aria-label="Filter by client"
             >
               <option value="">All Clients</option>
               {clients.map((client) => (
-                <option key={client.slug} value={client.name}>
+                <option key={client.id} value={client.id}>
                   {client.name}
                 </option>
               ))}
@@ -357,7 +397,11 @@ export default function TasksPage() {
         </div>
 
         <div className={styles.card}>
-          {filteredTasks.length === 0 ? (
+          {isLoadingTasks ? (
+            <div className={styles.emptyState}>
+              <p className={styles.emptyTitle}>Loading tasks…</p>
+            </div>
+          ) : filteredTasks.length === 0 ? (
             <div className={styles.emptyState}>
               <p className={styles.emptyTitle}>No tasks found</p>
               <p className={styles.emptyHint}>
@@ -382,10 +426,12 @@ export default function TasksPage() {
                 {filteredTasks.map((task) => (
                   <tr key={task.id}>
                     <td className={styles.taskTitle}>{task.title}</td>
-                    <td className={styles.secondaryText}>{task.project}</td>
-                    <td className={styles.secondaryText}>{task.client}</td>
+                    <td className={styles.secondaryText}>{task.projectName}</td>
+                    <td className={styles.secondaryText}>{task.clientName}</td>
                     <td className={styles.secondaryText}>{task.assignee}</td>
-                    <td className={styles.secondaryText}>{task.dueDate}</td>
+                    <td className={styles.secondaryText}>
+                      {formatTaskDueDate(task.dueDate)}
+                    </td>
                     <td>
                       <span
                         className={`${styles.badge} ${priorityBadgeClass[task.priority]}`}
@@ -430,6 +476,12 @@ export default function TasksPage() {
             </h2>
 
             <form className={styles.form} onSubmit={handleSubmit}>
+              {formError ? (
+                <p className={styles.error} role="alert">
+                  {formError}
+                </p>
+              ) : null}
+
               <div className={styles.field}>
                 <label htmlFor="task-name" className={styles.label}>
                   Task Name *
@@ -445,6 +497,7 @@ export default function TasksPage() {
                       title: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.title)}
                   aria-describedby={errors.title ? "task-name-error" : undefined}
                 />
@@ -462,29 +515,30 @@ export default function TasksPage() {
                 <select
                   id="task-client"
                   className={styles.select}
-                  value={form.client}
+                  value={form.clientId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      client: event.target.value,
-                      project: "",
+                      clientId: event.target.value,
+                      projectId: "",
                     }))
                   }
-                  aria-invalid={Boolean(errors.client)}
+                  disabled={isSaving}
+                  aria-invalid={Boolean(errors.clientId)}
                   aria-describedby={
-                    errors.client ? "task-client-error" : undefined
+                    errors.clientId ? "task-client-error" : undefined
                   }
                 >
                   <option value="">Select a client</option>
                   {clients.map((client) => (
-                    <option key={client.slug} value={client.name}>
+                    <option key={client.id} value={client.id}>
                       {client.name}
                     </option>
                   ))}
                 </select>
-                {errors.client && (
+                {errors.clientId && (
                   <p id="task-client-error" className={styles.error}>
-                    {errors.client}
+                    {errors.clientId}
                   </p>
                 )}
               </div>
@@ -496,33 +550,33 @@ export default function TasksPage() {
                 <select
                   id="task-project"
                   className={styles.select}
-                  value={form.project}
+                  value={form.projectId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      project: event.target.value,
+                      projectId: event.target.value,
                     }))
                   }
-                  disabled={!form.client}
-                  aria-invalid={Boolean(errors.project)}
+                  disabled={!form.clientId || isSaving}
+                  aria-invalid={Boolean(errors.projectId)}
                   aria-describedby={
-                    errors.project ? "task-project-error" : undefined
+                    errors.projectId ? "task-project-error" : undefined
                   }
                 >
                   <option value="">
-                    {form.client
+                    {form.clientId
                       ? "Select a project"
                       : "Select a client first"}
                   </option>
                   {projectOptions.map((project) => (
-                    <option key={project} value={project}>
-                      {project}
+                    <option key={project.id} value={project.id}>
+                      {project.name}
                     </option>
                   ))}
                 </select>
-                {errors.project && (
+                {errors.projectId && (
                   <p id="task-project-error" className={styles.error}>
-                    {errors.project}
+                    {errors.projectId}
                   </p>
                 )}
               </div>
@@ -541,6 +595,7 @@ export default function TasksPage() {
                       assignee: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.assignee)}
                   aria-describedby={
                     errors.assignee ? "task-assignee-error" : undefined
@@ -575,6 +630,7 @@ export default function TasksPage() {
                       dueDate: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.dueDate)}
                   aria-describedby={
                     errors.dueDate ? "task-due-date-error" : undefined
@@ -601,6 +657,7 @@ export default function TasksPage() {
                       priority: event.target.value as TaskPriority,
                     }))
                   }
+                  disabled={isSaving}
                 >
                   <option value="High">High</option>
                   <option value="Medium">Medium</option>
@@ -622,6 +679,7 @@ export default function TasksPage() {
                       status: event.target.value as TaskStatus,
                     }))
                   }
+                  disabled={isSaving}
                 >
                   <option value="To Do">To Do</option>
                   <option value="In Progress">In Progress</option>
@@ -636,18 +694,22 @@ export default function TasksPage() {
                   type="button"
                   className={styles.cancelButton}
                   onClick={closeModal}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
-                <button type="submit" className={styles.submitButton}>
-                  Add Task
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving…" : "Add Task"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </>
   );
 }

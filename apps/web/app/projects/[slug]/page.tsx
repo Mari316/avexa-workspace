@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 
 import { useAppData } from "../../../context/AppDataContext";
 import {
+  formatTaskDueDate,
   type TaskPriority,
   type TaskStatus,
 } from "../../../lib/mockData";
@@ -28,11 +29,24 @@ const statusBadgeClass: Record<TaskStatus, string> = {
 export default function ProjectDetailsPage() {
   const params = useParams();
   const slug = typeof params.slug === "string" ? params.slug : "";
-  const { clients, getProjectBySlug, getTasksByProject } = useAppData();
+  const {
+    getProjectBySlug,
+    getTasksByProjectId,
+    isLoadingProjects,
+    isLoadingTasks,
+  } = useAppData();
   const project = getProjectBySlug(slug);
-  const client = project
-    ? clients.find((currentClient) => currentClient.name === project.client)
-    : undefined;
+
+  if (isLoadingProjects || isLoadingTasks) {
+    return (
+      <main className={styles.container}>
+        <Link href="/projects" className={styles.backLink}>
+          ← Back to Projects
+        </Link>
+        <p className={styles.emptyState}>Loading project…</p>
+      </main>
+    );
+  }
 
   if (!project) {
     return (
@@ -48,103 +62,101 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  const projectTasks = getTasksByProject(project.name);
+  const projectTasks = getTasksByProjectId(project.id);
 
   return (
     <main className={styles.container}>
-        <Link href="/projects" className={styles.backLink}>
-          ← Back to Projects
-        </Link>
+      <Link href="/projects" className={styles.backLink}>
+        ← Back to Projects
+      </Link>
 
-        <div className={styles.detailsHeader}>
-          <div className={styles.titleRow}>
-            <h1 className={styles.title}>{project.name}</h1>
-            <span
-              className={`${styles.badge} ${
-                project.status === "Active"
-                  ? styles.badgeActive
-                  : styles.badgeOnHold
-              }`}
-            >
-              {project.status}
-            </span>
-          </div>
-
-          <div className={styles.meta}>
-            <div className={styles.metaItem}>
-              <span className={styles.metaLabel}>Client</span>
-              {client ? (
-                <Link
-                  href={`/clients/${client.slug}`}
-                  className={styles.clientLink}
-                >
-                  {project.client}
-                </Link>
-              ) : (
-                <span className={styles.metaValue}>{project.client}</span>
-              )}
-            </div>
-            <div className={styles.metaItem}>
-              <span className={styles.metaLabel}>Environment</span>
-              <span className={styles.metaValue}>{project.environment}</span>
-            </div>
-            <div className={styles.metaItem}>
-              <span className={styles.metaLabel}>Task Count</span>
-              <span className={styles.metaValue}>{projectTasks.length}</span>
-            </div>
-          </div>
+      <div className={styles.detailsHeader}>
+        <div className={styles.titleRow}>
+          <h1 className={styles.title}>{project.name}</h1>
+          <span
+            className={`${styles.badge} ${
+              project.status === "Active"
+                ? styles.badgeActive
+                : styles.badgeOnHold
+            }`}
+          >
+            {project.status}
+          </span>
         </div>
 
-        <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Tasks</h2>
-          <div className={styles.card}>
-            {projectTasks.length === 0 ? (
-              <p className={styles.emptyState}>No tasks for this project.</p>
-            ) : (
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Task</th>
-                    <th>Assignee</th>
-                    <th>Due Date</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projectTasks.map((task) => (
-                    <tr key={task.id}>
-                      <td className={styles.primaryName}>
-                        <Link
-                          href={`/tasks/${task.slug}`}
-                          className={styles.taskLink}
-                        >
-                          {task.title}
-                        </Link>
-                      </td>
-                      <td className={styles.secondaryText}>{task.assignee}</td>
-                      <td className={styles.secondaryText}>{task.dueDate}</td>
-                      <td>
-                        <span
-                          className={`${styles.badge} ${priorityBadgeClass[task.priority]}`}
-                        >
-                          {task.priority}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`${styles.badge} ${statusBadgeClass[task.status]}`}
-                        >
-                          {task.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+        <div className={styles.meta}>
+          <div className={styles.metaItem}>
+            <span className={styles.metaLabel}>Client</span>
+            <Link
+              href={`/clients/${project.clientSlug}`}
+              className={styles.clientLink}
+            >
+              {project.clientName}
+            </Link>
           </div>
-        </section>
-      </main>
+          <div className={styles.metaItem}>
+            <span className={styles.metaLabel}>Environment</span>
+            <span className={styles.metaValue}>{project.environment}</span>
+          </div>
+          <div className={styles.metaItem}>
+            <span className={styles.metaLabel}>Task Count</span>
+            <span className={styles.metaValue}>{projectTasks.length}</span>
+          </div>
+        </div>
+      </div>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Tasks</h2>
+        <div className={styles.card}>
+          {projectTasks.length === 0 ? (
+            <p className={styles.emptyState}>No tasks for this project.</p>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Assignee</th>
+                  <th>Due Date</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectTasks.map((task) => (
+                  <tr key={task.id}>
+                    <td className={styles.primaryName}>
+                      <Link
+                        href={`/tasks/${task.slug}`}
+                        className={styles.taskLink}
+                      >
+                        {task.title}
+                      </Link>
+                    </td>
+                    <td className={styles.secondaryText}>{task.assignee}</td>
+                    <td className={styles.secondaryText}>
+                      {formatTaskDueDate(task.dueDate)}
+                    </td>
+                    <td>
+                      <span
+                        className={`${styles.badge} ${priorityBadgeClass[task.priority]}`}
+                      >
+                        {task.priority}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className={`${styles.badge} ${statusBadgeClass[task.status]}`}
+                      >
+                        {task.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+    </main>
   );
 }

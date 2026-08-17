@@ -40,6 +40,10 @@ export async function request<T>(url: string, init?: RequestInit): Promise<T> {
     throw new ApiError("NETWORK_ERROR", "Unable to reach the server.", 0);
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   const payload: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {

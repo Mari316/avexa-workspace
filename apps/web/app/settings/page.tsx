@@ -2,8 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { useAppData } from "../../context/AppDataContext";
-
 import styles from "./page.module.css";
 
 type SettingsSection =
@@ -130,11 +128,9 @@ function settingsEqual<T>(current: T, saved: T): boolean {
 }
 
 export default function SettingsPage() {
-  const { resetDemoData } = useAppData();
   const [activeSection, setActiveSection] =
     useState<SettingsSection>("general");
   const [successMessage, setSuccessMessage] = useState("");
-  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const [generalSettings, setGeneralSettings] =
     useState<GeneralSettings>(initialGeneralSettings);
@@ -223,12 +219,6 @@ export default function SettingsPage() {
         };
       }),
     );
-  }
-
-  function handleConfirmReset() {
-    resetDemoData();
-    setIsResetModalOpen(false);
-    setSuccessMessage("Demo data reset successfully");
   }
 
   return (
@@ -382,23 +372,6 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </form>
-
-                <div className={styles.resetSection}>
-                  <h3 className={styles.resetTitle}>Demo Data</h3>
-                  <p className={styles.resetDescription}>
-                    Restore projects and tasks to the original demo seed data.
-                    Clients and contacts are stored in the database and are not
-                    affected.
-                  </p>
-                  <button
-                    type="button"
-                    className={styles.resetButton}
-                    aria-label="Reset Demo Data"
-                    onClick={() => setIsResetModalOpen(true)}
-                  >
-                    Reset Demo Data
-                  </button>
-                </div>
               </section>
             )}
 
@@ -764,47 +737,6 @@ export default function SettingsPage() {
             )}
           </div>
         </div>
-
-        {isResetModalOpen && (
-          <div
-            className={styles.backdrop}
-            role="presentation"
-            onClick={() => setIsResetModalOpen(false)}
-          >
-            <div
-              className={styles.modal}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="reset-demo-data-title"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <h2 id="reset-demo-data-title" className={styles.modalTitle}>
-                Reset Demo Data
-              </h2>
-              <p className={styles.modalMessage}>
-                Reset all Avexa demo data to its original state? All changes
-                made in this browser will be lost.
-              </p>
-              <div className={styles.modalActions}>
-                <button
-                  type="button"
-                  className={styles.cancelButton}
-                  onClick={() => setIsResetModalOpen(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className={styles.confirmResetButton}
-                  aria-label="Reset Data"
-                  onClick={handleConfirmReset}
-                >
-                  Reset Data
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </main>
   );
 }

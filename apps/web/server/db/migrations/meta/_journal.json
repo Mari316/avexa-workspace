@@ -22,6 +22,20 @@
       "when": 1786936104652,
       "tag": "0002_add_client_primary_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786989875493,
+      "tag": "0003_create_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786989879080,
+      "tag": "0004_create_tasks",
+      "breakpoints": true
     }
   ]
 }

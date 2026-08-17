@@ -109,7 +109,7 @@ export default function ClientsPage() {
     const counts = new Map<string, number>();
 
     for (const project of projects) {
-      counts.set(project.client, (counts.get(project.client) ?? 0) + 1);
+      counts.set(project.clientId, (counts.get(project.clientId) ?? 0) + 1);
     }
 
     return counts;
@@ -255,7 +255,7 @@ export default function ClientsPage() {
                       <td className={styles.clientName}>{client.name}</td>
                       <td className={styles.secondaryText}>
                         {formatProjects(
-                          projectCountByClient.get(client.name) ?? 0,
+                          projectCountByClient.get(client.id) ?? 0,
                         )}
                       </td>
                       <td className={styles.secondaryText}>

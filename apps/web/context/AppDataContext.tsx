@@ -2,11 +2,9 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -27,17 +25,27 @@ import {
   type UpdateContactBody,
 } from "../lib/api/contacts";
 import {
-  clearAppDataStorage,
-  getSeedData,
-  loadAppData,
-  saveAppData,
-  type StoredAppData,
-} from "../lib/appDataStorage";
-import type { ClientStatus, Project, Task } from "../lib/mockData";
+  createProject as createProjectRequest,
+  listProjects as listProjectsRequest,
+  type CreateProjectBody,
+  type ProjectDTO,
+} from "../lib/api/projects";
+import {
+  createTask as createTaskRequest,
+  deleteTask as deleteTaskRequest,
+  listTasks as listTasksRequest,
+  updateTask as updateTaskRequest,
+  type CreateTaskBody,
+  type TaskDTO,
+  type UpdateTaskBody,
+} from "../lib/api/tasks";
+import type { ClientStatus } from "../lib/mockData";
 
-/** Clients and contacts are database records; both are used as-is from the API. */
+/** All four core domains are database records used as-is from the API. */
 export type ClientView = ClientDTO;
 export type ContactView = ContactDTO;
+export type ProjectView = ProjectDTO;
+export type TaskView = TaskDTO;
 
 export type ClientCreateInput = {
   name: string;
@@ -57,45 +65,40 @@ type AppDataState = {
   contacts: ContactView[];
   isLoadingContacts: boolean;
   contactsError: string;
-  projects: Project[];
-  tasks: Task[];
-  isHydrated: boolean;
+  projects: ProjectView[];
+  isLoadingProjects: boolean;
+  projectsError: string;
+  tasks: TaskView[];
+  isLoadingTasks: boolean;
+  tasksError: string;
 };
 
 type AppDataActions = {
   addClient: (input: ClientCreateInput) => Promise<ClientView>;
   updateClient: (slug: string, input: ClientUpdateInput) => Promise<ClientView>;
-  addProject: (project: Project) => void;
-  addTask: (task: Task) => void;
-  updateTask: (slug: string, task: Task) => void;
-  deleteTask: (slug: string) => void;
+  addProject: (input: CreateProjectBody) => Promise<ProjectView>;
+  addTask: (input: CreateTaskBody) => Promise<TaskView>;
+  updateTask: (slug: string, input: UpdateTaskBody) => Promise<TaskView>;
+  deleteTask: (slug: string) => Promise<void>;
   addContact: (input: CreateContactBody) => Promise<ContactView>;
   updateContact: (
     slug: string,
     input: UpdateContactBody,
   ) => Promise<ContactView>;
-  resetDemoData: () => void;
-  getProjectBySlug: (slug: string) => Project | undefined;
-  getProjectByName: (name: string) => Project | undefined;
-  getTaskBySlug: (slug: string) => Task | undefined;
+  getProjectBySlug: (slug: string) => ProjectView | undefined;
+  getProjectById: (id: string) => ProjectView | undefined;
+  getTaskBySlug: (slug: string) => TaskView | undefined;
   getClientBySlug: (slug: string) => ClientView | undefined;
   getContactBySlug: (slug: string) => ContactView | undefined;
-  getProjectsByClient: (clientName: string) => Project[];
+  getProjectsByClientId: (clientId: string) => ProjectView[];
   getContactsByClientId: (clientId: string) => ContactView[];
-  getTasksByProject: (projectName: string) => Task[];
-  getProjectNamesByClient: (clientName: string) => string[];
+  getTasksByProjectId: (projectId: string) => TaskView[];
 };
 
 const AppDataStateContext = createContext<AppDataState | null>(null);
 const AppDataActionsContext = createContext<AppDataActions | null>(null);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const seedData = useMemo(() => getSeedData(), []);
-  const [data, setData] = useState<StoredAppData>(seedData);
-  const [isHydrated, setIsHydrated] = useState(false);
-  const dataRef = useRef(data);
-
-  // Clients and contacts come from PostgreSQL, so both start empty rather than seeded.
   const [clients, setClients] = useState<ClientView[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [clientsError, setClientsError] = useState("");
@@ -104,14 +107,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
   const [contactsError, setContactsError] = useState("");
 
-  useEffect(() => {
-    dataRef.current = data;
-  }, [data]);
+  const [projects, setProjects] = useState<ProjectView[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [projectsError, setProjectsError] = useState("");
+
+  const [tasks, setTasks] = useState<TaskView[]>([]);
+  const [isLoadingTasks, setIsLoadingTasks] = useState(true);
+  const [tasksError, setTasksError] = useState("");
 
   useEffect(() => {
-    setData(loadAppData(seedData));
-    setIsHydrated(true);
-  }, [seedData]);
+    // Clear retired workspace localStorage keys from earlier steps.
+    if (typeof window !== "undefined") {
+      for (const key of [
+        "avexa.workspace.v2",
+        "avexa.workspace.v1",
+        "avexa-app-data",
+        "avexa.clientPrimaryContacts.v1",
+      ]) {
+        localStorage.removeItem(key);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,37 +181,59 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const persist = useCallback(
-    (updater: (current: StoredAppData) => StoredAppData) => {
-      setData((current) => {
-        const next = updater(current);
-        saveAppData(next);
-        return next;
+  useEffect(() => {
+    let cancelled = false;
+
+    listProjectsRequest()
+      .then((rows) => {
+        if (!cancelled) {
+          setProjects(rows);
+          setProjectsError("");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectsError("Unable to load projects. Please refresh the page.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingProjects(false);
+        }
       });
-    },
-    [],
-  );
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    listTasksRequest()
+      .then((rows) => {
+        if (!cancelled) {
+          setTasks(rows);
+          setTasksError("");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTasksError("Unable to load tasks. Please refresh the page.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingTasks(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const actions = useMemo<AppDataActions>(() => {
-    /**
-     * Temporary compatibility: projects and tasks still store their client as a
-     * name string in localStorage, so a rename in PostgreSQL has to be mirrored
-     * into them. Contacts now use clientId and are no longer rewritten here.
-     */
-    const cascadeClientRename = (previousName: string, nextName: string) => {
-      persist((current) => ({
-        ...current,
-        projects: current.projects.map((project) =>
-          project.client === previousName
-            ? { ...project, client: nextName }
-            : project,
-        ),
-        tasks: current.tasks.map((task) =>
-          task.client === previousName ? { ...task, client: nextName } : task,
-        ),
-      }));
-    };
-
     const addClient = async (input: ClientCreateInput): Promise<ClientView> => {
       const created = await createClientRequest({
         name: input.name,
@@ -240,69 +278,46 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         setClients((current) =>
           current.map((client) => (client.slug === slug ? updated : client)),
         );
-
-        if (updated.name !== existing.name) {
-          cascadeClientRename(existing.name, updated.name);
-        }
       }
 
       return updated;
     };
 
-    const addProject = (project: Project) => {
-      persist((current) => {
-        if (
-          current.projects.some((existing) => existing.slug === project.slug)
-        ) {
-          return current;
-        }
+    const addProject = async (
+      input: CreateProjectBody,
+    ): Promise<ProjectView> => {
+      const created = await createProjectRequest(input);
 
-        return {
-          ...current,
-          projects: [...current.projects, project],
-        };
-      });
+      setProjects((current) => [...current, created]);
+
+      return created;
     };
 
-    const addTask = (task: Task) => {
-      persist((current) => {
-        if (current.tasks.some((existing) => existing.slug === task.slug)) {
-          return current;
-        }
+    const addTask = async (input: CreateTaskBody): Promise<TaskView> => {
+      const created = await createTaskRequest(input);
 
-        return {
-          ...current,
-          tasks: [...current.tasks, task],
-        };
-      });
+      setTasks((current) => [...current, created]);
+
+      return created;
     };
 
-    const updateTask = (slug: string, task: Task) => {
-      persist((current) => ({
-        ...current,
-        tasks: current.tasks.map((currentTask) =>
-          currentTask.slug === slug
-            ? {
-                id: currentTask.id,
-                slug: currentTask.slug,
-                title: task.title,
-                project: task.project,
-                client: task.client,
-                assignee: task.assignee,
-                dueDate: task.dueDate,
-                priority: task.priority,
-                status: task.status,
-              }
-            : currentTask,
-        ),
-      }));
+    const updateTask = async (
+      slug: string,
+      input: UpdateTaskBody,
+    ): Promise<TaskView> => {
+      const updated = await updateTaskRequest(slug, input);
+
+      setTasks((current) =>
+        current.map((task) => (task.slug === slug ? updated : task)),
+      );
+
+      return updated;
     };
 
-    const deleteTask = (slug: string) => {
-      persist((current) => ({
-        ...current,
-        tasks: current.tasks.filter((task) => task.slug !== slug),
-      }));
+    const deleteTask = async (slug: string): Promise<void> => {
+      await deleteTaskRequest(slug);
+
+      setTasks((current) => current.filter((task) => task.slug !== slug));
     };
 
     const addContact = async (
@@ -328,15 +343,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       return updated;
     };
 
-    // Clients and contacts live in PostgreSQL and are deliberately left
-    // untouched by a demo reset.
-    const resetDemoData = () => {
-      const seed = getSeedData();
-      clearAppDataStorage();
-      saveAppData(seed);
-      setData(seed);
-    };
-
     return {
       addClient,
       updateClient,
@@ -346,31 +352,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       deleteTask,
       addContact,
       updateContact,
-      resetDemoData,
       getClientBySlug: (slug: string) =>
         clients.find((client) => client.slug === slug),
       getProjectBySlug: (slug: string) =>
-        dataRef.current.projects.find((project) => project.slug === slug),
-      getProjectByName: (name: string) =>
-        dataRef.current.projects.find((project) => project.name === name),
-      getTaskBySlug: (slug: string) =>
-        dataRef.current.tasks.find((task) => task.slug === slug),
+        projects.find((project) => project.slug === slug),
+      getProjectById: (id: string) =>
+        projects.find((project) => project.id === id),
+      getTaskBySlug: (slug: string) => tasks.find((task) => task.slug === slug),
       getContactBySlug: (slug: string) =>
         contacts.find((contact) => contact.slug === slug),
-      getProjectsByClient: (clientName: string) =>
-        dataRef.current.projects.filter(
-          (project) => project.client === clientName,
-        ),
+      getProjectsByClientId: (clientId: string) =>
+        projects.filter((project) => project.clientId === clientId),
       getContactsByClientId: (clientId: string) =>
         contacts.filter((contact) => contact.clientId === clientId),
-      getTasksByProject: (projectName: string) =>
-        dataRef.current.tasks.filter((task) => task.project === projectName),
-      getProjectNamesByClient: (clientName: string) =>
-        dataRef.current.projects
-          .filter((project) => project.client === clientName)
-          .map((project) => project.name),
+      getTasksByProjectId: (projectId: string) =>
+        tasks.filter((task) => task.projectId === projectId),
     };
-  }, [clients, contacts, persist]);
+  }, [clients, contacts, projects, tasks]);
 
   const state = useMemo(
     () => ({
@@ -380,19 +378,26 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       contacts,
       isLoadingContacts,
       contactsError,
-      projects: data.projects,
-      tasks: data.tasks,
-      isHydrated,
+      projects,
+      isLoadingProjects,
+      projectsError,
+      tasks,
+      isLoadingTasks,
+      tasksError,
     }),
     [
       clients,
       clientsError,
       contacts,
       contactsError,
-      data,
-      isHydrated,
       isLoadingClients,
       isLoadingContacts,
+      isLoadingProjects,
+      isLoadingTasks,
+      projects,
+      projectsError,
+      tasks,
+      tasksError,
     ],
   );
 

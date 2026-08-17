@@ -1,60 +1,32 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import {
-  clients as clientSeedData,
-  contacts as contactSeedData,
-  type Client,
-  type Contact,
-} from "../../lib/mockData";
 import { closeDatabase, db } from "../db";
-import { clients, contacts, type NewClientRow, type NewContactRow } from "../db/schema";
+import {
+  clients,
+  contacts,
+  projects,
+  tasks,
+  type NewClientRow,
+  type NewContactRow,
+  type NewProjectRow,
+  type NewTaskRow,
+} from "../db/schema";
+import {
+  seedClientId,
+  seedClients,
+  seedContactId,
+  seedContacts,
+  seedProjectId,
+  seedProjects,
+  seedTaskId,
+  seedTasks,
+  type SeedClient,
+  type SeedContact,
+  type SeedProject,
+  type SeedTask,
+} from "./data";
 
-/**
- * Fixed ids keep seeded clients stable across resets and machines, so future
- * API/Playwright fixtures can reference a known client id.
- */
-const SEED_CLIENT_IDS: Record<string, string> = {
-  pax8: "11111111-1111-4111-8111-111111111111",
-  cybertek: "22222222-2222-4222-8222-222222222222",
-  orangehrm: "33333333-3333-4333-8333-333333333333",
-  lemonade: "44444444-4444-4444-8444-444444444444",
-};
-
-/** Same reasoning as the client ids: a known contact id is addressable from tests. */
-const SEED_CONTACT_IDS: Record<string, string> = {
-  "mitchell-lubbers": "55555555-5555-4555-8555-555555555555",
-  "jennifer-walsh": "66666666-6666-4666-8666-666666666666",
-  "john-smith": "77777777-7777-4777-8777-777777777777",
-  "emily-chen": "88888888-8888-4888-8888-888888888888",
-  "sarah-lee": "99999999-9999-4999-8999-999999999999",
-  "alex-brown": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-};
-
-function seedClientId(slug: string): string {
-  const id = SEED_CLIENT_IDS[slug];
-
-  if (!id) {
-    throw new Error(
-      `Seed client "${slug}" has no fixed id. Add it to SEED_CLIENT_IDS to keep the seed deterministic.`,
-    );
-  }
-
-  return id;
-}
-
-function seedContactId(slug: string): string {
-  const id = SEED_CONTACT_IDS[slug];
-
-  if (!id) {
-    throw new Error(
-      `Seed contact "${slug}" has no fixed id. Add it to SEED_CONTACT_IDS to keep the seed deterministic.`,
-    );
-  }
-
-  return id;
-}
-
-function toClientRow(client: Client): NewClientRow {
+function toClientRow(client: SeedClient): NewClientRow {
   return {
     id: seedClientId(client.slug),
     slug: client.slug,
@@ -63,27 +35,40 @@ function toClientRow(client: Client): NewClientRow {
   };
 }
 
-/** Seed contacts still name their client; this resolves that name to the real key. */
-function toContactRow(contact: Contact): NewContactRow {
-  const owningClient = clientSeedData.find(
-    (client) => client.name === contact.client,
-  );
-
-  if (!owningClient) {
-    throw new Error(
-      `Seed contact "${contact.slug}" references unknown client "${contact.client}".`,
-    );
-  }
-
+function toContactRow(contact: SeedContact): NewContactRow {
   return {
     id: seedContactId(contact.slug),
     slug: contact.slug,
     firstName: contact.firstName,
     lastName: contact.lastName,
-    clientId: seedClientId(owningClient.slug),
+    clientId: seedClientId(contact.clientSlug),
     email: contact.email,
     role: contact.role,
     status: contact.status,
+  };
+}
+
+function toProjectRow(project: SeedProject): NewProjectRow {
+  return {
+    id: seedProjectId(project.slug),
+    slug: project.slug,
+    name: project.name,
+    clientId: seedClientId(project.clientSlug),
+    environment: project.environment,
+    status: project.status,
+  };
+}
+
+function toTaskRow(task: SeedTask): NewTaskRow {
+  return {
+    id: seedTaskId(task.slug),
+    slug: task.slug,
+    title: task.title,
+    projectId: seedProjectId(task.projectSlug),
+    assignee: task.assignee,
+    dueDate: task.dueDate,
+    priority: task.priority,
+    status: task.status,
   };
 }
 
@@ -93,7 +78,7 @@ function toContactRow(contact: Contact): NewContactRow {
  * keeps `updated_at` untouched on repeat runs.
  */
 export async function seedClientsTable(): Promise<void> {
-  for (const client of clientSeedData) {
+  for (const client of seedClients) {
     await db
       .insert(clients)
       .values(toClientRow(client))
@@ -110,9 +95,8 @@ export async function seedClientsTable(): Promise<void> {
   }
 }
 
-/** Same upsert-and-guard strategy as clients, keyed on the contact slug. */
 export async function seedContactsTable(): Promise<void> {
-  for (const contact of contactSeedData) {
+  for (const contact of seedContacts) {
     await db
       .insert(contacts)
       .values(toContactRow(contact))
@@ -143,7 +127,7 @@ export async function seedContactsTable(): Promise<void> {
  * freshly seeded database keeps `created_at = updated_at` on every row.
  */
 export async function seedPrimaryContacts(): Promise<void> {
-  for (const client of clientSeedData) {
+  for (const client of seedClients) {
     if (!client.primaryContactSlug) {
       continue;
     }
@@ -163,10 +147,60 @@ export async function seedPrimaryContacts(): Promise<void> {
   }
 }
 
+export async function seedProjectsTable(): Promise<void> {
+  for (const project of seedProjects) {
+    await db
+      .insert(projects)
+      .values(toProjectRow(project))
+      .onConflictDoUpdate({
+        target: projects.slug,
+        set: {
+          name: sql`excluded.name`,
+          clientId: sql`excluded.client_id`,
+          environment: sql`excluded.environment`,
+          status: sql`excluded.status`,
+          updatedAt: sql`now()`,
+        },
+        setWhere: sql`projects.name IS DISTINCT FROM excluded.name
+          OR projects.client_id IS DISTINCT FROM excluded.client_id
+          OR projects.environment IS DISTINCT FROM excluded.environment
+          OR projects.status IS DISTINCT FROM excluded.status`,
+      });
+  }
+}
+
+export async function seedTasksTable(): Promise<void> {
+  for (const task of seedTasks) {
+    await db
+      .insert(tasks)
+      .values(toTaskRow(task))
+      .onConflictDoUpdate({
+        target: tasks.slug,
+        set: {
+          title: sql`excluded.title`,
+          projectId: sql`excluded.project_id`,
+          assignee: sql`excluded.assignee`,
+          dueDate: sql`excluded.due_date`,
+          priority: sql`excluded.priority`,
+          status: sql`excluded.status`,
+          updatedAt: sql`now()`,
+        },
+        setWhere: sql`tasks.title IS DISTINCT FROM excluded.title
+          OR tasks.project_id IS DISTINCT FROM excluded.project_id
+          OR tasks.assignee IS DISTINCT FROM excluded.assignee
+          OR tasks.due_date IS DISTINCT FROM excluded.due_date
+          OR tasks.priority IS DISTINCT FROM excluded.priority
+          OR tasks.status IS DISTINCT FROM excluded.status`,
+      });
+  }
+}
+
 async function main(): Promise<void> {
   await seedClientsTable();
   await seedContactsTable();
   await seedPrimaryContacts();
+  await seedProjectsTable();
+  await seedTasksTable();
 
   const [clientTotals] = await db
     .select({
@@ -177,11 +211,19 @@ async function main(): Promise<void> {
   const [contactTotals] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(contacts);
+  const [projectTotals] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(projects);
+  const [taskTotals] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(tasks);
 
   console.log(
     `Seed complete. clients=${clientTotals?.total ?? 0} ` +
       `(with primary contact: ${clientTotals?.withPrimaryContact ?? 0}), ` +
-      `contacts=${contactTotals?.total ?? 0}.`,
+      `contacts=${contactTotals?.total ?? 0}, ` +
+      `projects=${projectTotals?.total ?? 0}, ` +
+      `tasks=${taskTotals?.total ?? 0}.`,
   );
 }
 

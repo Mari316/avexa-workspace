@@ -4,11 +4,8 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 import { useAppData } from "../../context/AppDataContext";
-import {
-  getProjectSlug,
-  type Project,
-  type ProjectStatus,
-} from "../../lib/mockData";
+import { ApiError } from "../../lib/api/request";
+import { type ProjectStatus } from "../../lib/mockData";
 
 import styles from "./page.module.css";
 
@@ -19,17 +16,16 @@ type ProjectEnvironment =
   | "Production"
   | "Demo";
 
-type ProjectClient = string;
 type ProjectFormData = {
   name: string;
-  client: string;
+  clientId: string;
   environment: string;
   status: ProjectStatus;
 };
 
 type FormErrors = {
   name?: string;
-  client?: string;
+  clientId?: string;
   environment?: string;
 };
 
@@ -43,7 +39,7 @@ const environmentOptions: ProjectEnvironment[] = [
 
 const emptyForm: ProjectFormData = {
   name: "",
-  client: "",
+  clientId: "",
   environment: "",
   status: "Active",
 };
@@ -55,8 +51,8 @@ function validateForm(form: ProjectFormData): FormErrors {
     errors.name = "Project name is required.";
   }
 
-  if (!form.client) {
-    errors.client = "Client is required.";
+  if (!form.clientId) {
+    errors.clientId = "Client is required.";
   }
 
   if (!form.environment) {
@@ -66,46 +62,89 @@ function validateForm(form: ProjectFormData): FormErrors {
   return errors;
 }
 
+function toFormErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "PROJECT_SLUG_CONFLICT":
+        return "A project with this name already exists.";
+      case "PROJECT_NAME_NOT_SLUGGABLE":
+        return "Enter a project name containing letters or numbers.";
+      case "CLIENT_NOT_FOUND":
+        return "The selected client does not exist.";
+      case "VALIDATION_ERROR":
+        return "Please check the values you entered and try again.";
+      case "NETWORK_ERROR":
+        return "Unable to reach the server. Please try again.";
+      default:
+        return "Something went wrong. Please try again.";
+    }
+  }
+
+  return "Something went wrong. Please try again.";
+}
+
 export default function ProjectsPage() {
-  const { clients, projects, tasks, addProject } = useAppData();
-  const clientOptions = clients.map((client) => client.name);
+  const {
+    clients,
+    projects,
+    tasks,
+    isLoadingProjects,
+    projectsError,
+    addProject,
+  } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ProjectFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   function openModal() {
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
     setIsModalOpen(true);
   }
 
   function closeModal() {
+    if (isSaving) {
+      return;
+    }
+
     setIsModalOpen(false);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationErrors = validateForm(form);
     setErrors(validationErrors);
+    setFormError("");
 
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
-    const newProject: Project = {
-      name: form.name.trim(),
-      slug: getProjectSlug(form.name.trim()),
-      client: form.client,
-      environment: form.environment,
-      taskCount: 0,
-      status: form.status,
-    };
+    setIsSaving(true);
 
-    addProject(newProject);
-    closeModal();
+    try {
+      await addProject({
+        name: form.name.trim(),
+        clientId: form.clientId,
+        environment: form.environment as ProjectEnvironment,
+        status: form.status,
+      });
+      setIsModalOpen(false);
+      setForm(emptyForm);
+      setErrors({});
+      setFormError("");
+    } catch (error) {
+      setFormError(toFormErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -128,6 +167,12 @@ export default function ProjectsPage() {
           </button>
         </div>
 
+        {projectsError ? (
+          <p className={styles.error} role="alert">
+            {projectsError}
+          </p>
+        ) : null}
+
         <div className={styles.card}>
           <table className={styles.table}>
             <thead>
@@ -141,39 +186,47 @@ export default function ProjectsPage() {
               </tr>
             </thead>
             <tbody>
-              {projects.map((project) => (
-                <tr key={project.name}>
-                  <td className={styles.projectName}>{project.name}</td>
-                  <td className={styles.secondaryText}>{project.client}</td>
-                  <td className={styles.secondaryText}>{project.environment}</td>
-                  <td className={styles.secondaryText}>
-                    {
-                      tasks.filter((task) => task.project === project.name)
-                        .length
-                    }
-                  </td>
-                  <td>
-                    <span
-                      className={`${styles.badge} ${
-                        project.status === "Active"
-                          ? styles.badgeActive
-                          : styles.badgeOnHold
-                      }`}
-                    >
-                      {project.status}
-                    </span>
-                  </td>
-                  <td>
-                    <Link
-                      href={`/projects/${project.slug}`}
-                      className={styles.viewAction}
-                      aria-label={`View ${project.name}`}
-                    >
-                      View →
-                    </Link>
+              {isLoadingProjects ? (
+                <tr>
+                  <td colSpan={6} className={styles.secondaryText}>
+                    Loading projects…
                   </td>
                 </tr>
-              ))}
+              ) : (
+                projects.map((project) => (
+                  <tr key={project.id}>
+                    <td className={styles.projectName}>{project.name}</td>
+                    <td className={styles.secondaryText}>{project.clientName}</td>
+                    <td className={styles.secondaryText}>{project.environment}</td>
+                    <td className={styles.secondaryText}>
+                      {
+                        tasks.filter((task) => task.projectId === project.id)
+                          .length
+                      }
+                    </td>
+                    <td>
+                      <span
+                        className={`${styles.badge} ${
+                          project.status === "Active"
+                            ? styles.badgeActive
+                            : styles.badgeOnHold
+                        }`}
+                      >
+                        {project.status}
+                      </span>
+                    </td>
+                    <td>
+                      <Link
+                        href={`/projects/${project.slug}`}
+                        className={styles.viewAction}
+                        aria-label={`View ${project.name}`}
+                      >
+                        View →
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -192,6 +245,12 @@ export default function ProjectsPage() {
             </h2>
 
             <form className={styles.form} onSubmit={handleSubmit}>
+              {formError ? (
+                <p className={styles.error} role="alert">
+                  {formError}
+                </p>
+              ) : null}
+
               <div className={styles.field}>
                 <label htmlFor="project-name" className={styles.label}>
                   Project Name *
@@ -207,6 +266,7 @@ export default function ProjectsPage() {
                       name: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.name)}
                   aria-describedby={
                     errors.name ? "project-name-error" : undefined
@@ -226,28 +286,29 @@ export default function ProjectsPage() {
                 <select
                   id="project-client"
                   className={styles.select}
-                  value={form.client}
+                  value={form.clientId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      client: event.target.value,
+                      clientId: event.target.value,
                     }))
                   }
-                  aria-invalid={Boolean(errors.client)}
+                  disabled={isSaving}
+                  aria-invalid={Boolean(errors.clientId)}
                   aria-describedby={
-                    errors.client ? "project-client-error" : undefined
+                    errors.clientId ? "project-client-error" : undefined
                   }
                 >
                   <option value="">Select a client</option>
-                  {clientOptions.map((client) => (
-                    <option key={client} value={client}>
-                      {client}
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
                     </option>
                   ))}
                 </select>
-                {errors.client && (
+                {errors.clientId && (
                   <p id="project-client-error" className={styles.error}>
-                    {errors.client}
+                    {errors.clientId}
                   </p>
                 )}
               </div>
@@ -266,6 +327,7 @@ export default function ProjectsPage() {
                       environment: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.environment)}
                   aria-describedby={
                     errors.environment ? "project-environment-error" : undefined
@@ -299,6 +361,7 @@ export default function ProjectsPage() {
                       status: event.target.value as ProjectStatus,
                     }))
                   }
+                  disabled={isSaving}
                 >
                   <option value="Active">Active</option>
                   <option value="On Hold">On Hold</option>
@@ -310,18 +373,22 @@ export default function ProjectsPage() {
                   type="button"
                   className={styles.cancelButton}
                   onClick={closeModal}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
-                <button type="submit" className={styles.submitButton}>
-                  Add Project
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving…" : "Add Project"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </>
   );
 }

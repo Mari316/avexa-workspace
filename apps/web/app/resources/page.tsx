@@ -163,7 +163,7 @@ export default function ResourcesPage() {
   const [errors, setErrors] = useState<FormErrors>({});
 
   const projectOptions = form.client
-    ? projects.filter((project) => project.client === form.client)
+    ? projects.filter((project) => project.clientName === form.client)
     : [];
 
   function openModal() {

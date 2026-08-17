@@ -175,7 +175,7 @@ export default function NotesPage() {
   const [errors, setErrors] = useState<FormErrors>({});
 
   const projectOptions = form.client
-    ? projects.filter((project) => project.client === form.client)
+    ? projects.filter((project) => project.clientName === form.client)
     : [];
 
   const sortedNotes = useMemo(

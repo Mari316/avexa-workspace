@@ -92,7 +92,6 @@ export default function ContactsPage() {
     contactsError,
     addContact,
     updateContact,
-    isHydrated,
   } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
@@ -213,7 +212,7 @@ export default function ContactsPage() {
               </tr>
             </thead>
             <tbody>
-              {!isHydrated || isLoadingContacts ? (
+              {isLoadingContacts ? (
                 <tr>
                   <td colSpan={6} className={styles.secondaryText}>
                     Loading contacts…

@@ -17,17 +17,23 @@ export default function ClientDetailsPage() {
   const {
     contacts,
     getClientBySlug,
-    getProjectsByClient,
+    getProjectsByClientId,
     getContactsByClientId,
     isLoadingClients,
     isLoadingContacts,
+    isLoadingProjects,
+    isLoadingTasks,
     tasks,
   } = useAppData();
   const client = getClientBySlug(slug);
 
-  // Clients and contacts arrive from the API independently, so "not found"
-  // and empty relationship lists are only meaningful once both loads finish.
-  if (isLoadingClients || isLoadingContacts) {
+  // Relationship lists are only meaningful once related API loads finish.
+  if (
+    isLoadingClients ||
+    isLoadingContacts ||
+    isLoadingProjects ||
+    isLoadingTasks
+  ) {
     return (
       <main className={styles.container}>
         <Link href="/clients" className={styles.backLink}>
@@ -52,7 +58,7 @@ export default function ClientDetailsPage() {
     );
   }
 
-  const clientProjects = getProjectsByClient(client.name);
+  const clientProjects = getProjectsByClientId(client.id);
   const clientContacts = getContactsByClientId(client.id);
   const primaryContact = resolveClientPrimaryContact(client, contacts);
 
@@ -114,7 +120,7 @@ export default function ClientDetailsPage() {
               </thead>
               <tbody>
                 {clientProjects.map((project) => (
-                  <tr key={project.name}>
+                  <tr key={project.id}>
                     <td className={styles.primaryName}>
                       <Link
                         href={`/projects/${project.slug}`}
@@ -128,7 +134,7 @@ export default function ClientDetailsPage() {
                     </td>
                     <td className={styles.secondaryText}>
                       {
-                        tasks.filter((task) => task.project === project.name)
+                        tasks.filter((task) => task.projectId === project.id)
                           .length
                       }
                     </td>

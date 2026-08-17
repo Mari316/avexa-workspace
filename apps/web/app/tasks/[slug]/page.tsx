@@ -4,11 +4,12 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { useAppData } from "../../../context/AppDataContext";
+import { useAppData, type TaskView } from "../../../context/AppDataContext";
+import { ApiError } from "../../../lib/api/request";
 import { markTaskDeleteSuccess } from "../../../lib/deletedTasks";
 import { notifyTaskUpdated } from "../../../lib/mockNotifications";
 import {
-  type Task,
+  formatTaskDueDate,
   type TaskPriority,
   type TaskStatus,
 } from "../../../lib/mockData";
@@ -19,7 +20,7 @@ type TaskAssignee = "Mari" | "Chris" | "Alex";
 
 type EditTaskFormData = {
   title: string;
-  project: string;
+  projectId: string;
   assignee: string;
   dueDate: string;
   priority: TaskPriority;
@@ -28,7 +29,7 @@ type EditTaskFormData = {
 
 type FormErrors = {
   title?: string;
-  project?: string;
+  projectId?: string;
   assignee?: string;
   dueDate?: string;
 };
@@ -49,30 +50,6 @@ const statusBadgeClass: Record<TaskStatus, string> = {
   Done: styles.statusDone,
 };
 
-function parseDisplayDueDate(displayDate: string): string {
-  const parsed = new Date(`${displayDate}, 2026`);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  const year = parsed.getFullYear();
-  const month = String(parsed.getMonth() + 1).padStart(2, "0");
-  const day = String(parsed.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
-function formatDueDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
 function validateForm(form: EditTaskFormData): FormErrors {
   const errors: FormErrors = {};
 
@@ -80,8 +57,8 @@ function validateForm(form: EditTaskFormData): FormErrors {
     errors.title = "Task name is required.";
   }
 
-  if (!form.project) {
-    errors.project = "Project is required.";
+  if (!form.projectId) {
+    errors.projectId = "Project is required.";
   }
 
   if (!form.assignee) {
@@ -95,15 +72,36 @@ function validateForm(form: EditTaskFormData): FormErrors {
   return errors;
 }
 
-function taskToFormData(task: Task): EditTaskFormData {
+function taskToFormData(task: TaskView): EditTaskFormData {
   return {
     title: task.title,
-    project: task.project,
+    projectId: task.projectId,
     assignee: task.assignee,
-    dueDate: parseDisplayDueDate(task.dueDate),
+    dueDate: task.dueDate,
     priority: task.priority,
     status: task.status,
   };
+}
+
+function toFormErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "TASK_SLUG_CONFLICT":
+        return "A task with this title already exists.";
+      case "TASK_TITLE_NOT_SLUGGABLE":
+        return "Enter a task title containing letters or numbers.";
+      case "PROJECT_NOT_FOUND":
+        return "The selected project does not exist.";
+      case "VALIDATION_ERROR":
+        return "Please check the values you entered and try again.";
+      case "NETWORK_ERROR":
+        return "Unable to reach the server. Please try again.";
+      default:
+        return "Something went wrong. Please try again.";
+    }
+  }
+
+  return "Something went wrong. Please try again.";
 }
 
 export default function TaskDetailsPage() {
@@ -111,29 +109,29 @@ export default function TaskDetailsPage() {
   const router = useRouter();
   const slug = typeof params.slug === "string" ? params.slug : "";
   const {
-    clients,
     projects,
     getTaskBySlug,
-    getProjectByName,
     updateTask,
     deleteTask,
+    isLoadingTasks,
+    isLoadingProjects,
   } = useAppData();
   const task = getTaskBySlug(slug);
-  const client = task
-    ? clients.find((currentClient) => currentClient.name === task.client)
-    : undefined;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<EditTaskFormData>({
     title: "",
-    project: "",
+    projectId: "",
     assignee: "",
     dueDate: "",
     priority: "Medium",
     status: "To Do",
   });
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
 
   function openModal() {
     if (!task) {
@@ -142,15 +140,21 @@ export default function TaskDetailsPage() {
 
     setForm(taskToFormData(task));
     setErrors({});
+    setFormError("");
     setIsModalOpen(true);
   }
 
   function closeModal() {
+    if (isSaving) {
+      return;
+    }
+
     setIsModalOpen(false);
     setErrors({});
+    setFormError("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!task) {
@@ -159,35 +163,41 @@ export default function TaskDetailsPage() {
 
     const validationErrors = validateForm(form);
     setErrors(validationErrors);
+    setFormError("");
 
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
-    const selectedProject = getProjectByName(form.project);
     const previousStatus = task.status;
     const updatedTitle = form.title.trim();
     const updatedStatus = form.status;
 
-    const updatedTask: Task = {
-      ...task,
-      title: updatedTitle,
-      project: form.project,
-      client: selectedProject?.client ?? task.client,
-      assignee: form.assignee,
-      dueDate: formatDueDate(form.dueDate),
-      priority: form.priority,
-      status: updatedStatus,
-    };
+    setIsSaving(true);
 
-    updateTask(task.slug, updatedTask);
-    notifyTaskUpdated(
-      updatedTitle,
-      task.slug,
-      previousStatus,
-      updatedStatus,
-    );
-    closeModal();
+    try {
+      const updated = await updateTask(task.slug, {
+        title: updatedTitle,
+        projectId: form.projectId,
+        assignee: form.assignee,
+        dueDate: form.dueDate,
+        priority: form.priority,
+        status: updatedStatus,
+      });
+      notifyTaskUpdated(
+        updated.title,
+        updated.slug,
+        previousStatus,
+        updated.status,
+      );
+      setIsModalOpen(false);
+      setErrors({});
+      setFormError("");
+    } catch (error) {
+      setFormError(toFormErrorMessage(error));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function closeDeleteModal() {
@@ -196,17 +206,36 @@ export default function TaskDetailsPage() {
     }
 
     setIsDeleteModalOpen(false);
+    setDeleteError("");
   }
 
-  function handleConfirmDelete() {
+  async function handleConfirmDelete() {
     if (!task || isDeleting) {
       return;
     }
 
     setIsDeleting(true);
-    deleteTask(task.slug);
-    markTaskDeleteSuccess();
-    router.push("/tasks");
+    setDeleteError("");
+
+    try {
+      await deleteTask(task.slug);
+      markTaskDeleteSuccess();
+      router.push("/tasks");
+    } catch (error) {
+      setDeleteError(toFormErrorMessage(error));
+      setIsDeleting(false);
+    }
+  }
+
+  if (isLoadingTasks || isLoadingProjects) {
+    return (
+      <main className={styles.container}>
+        <Link href="/tasks" className={styles.backLink}>
+          ← Back to Tasks
+        </Link>
+        <p className={styles.metaValue}>Loading task…</p>
+      </main>
+    );
   }
 
   if (!task) {
@@ -222,8 +251,6 @@ export default function TaskDetailsPage() {
       </main>
     );
   }
-
-  const project = getProjectByName(task.project);
 
   return (
     <>
@@ -254,7 +281,10 @@ export default function TaskDetailsPage() {
               <button
                 type="button"
                 className={styles.deleteButton}
-                onClick={() => setIsDeleteModalOpen(true)}
+                onClick={() => {
+                  setDeleteError("");
+                  setIsDeleteModalOpen(true);
+                }}
               >
                 Delete Task
               </button>
@@ -264,29 +294,21 @@ export default function TaskDetailsPage() {
           <div className={styles.meta}>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Project</span>
-              {project ? (
-                <Link
-                  href={`/projects/${project.slug}`}
-                  className={styles.navLink}
-                >
-                  {task.project}
-                </Link>
-              ) : (
-                <span className={styles.metaValue}>{task.project}</span>
-              )}
+              <Link
+                href={`/projects/${task.projectSlug}`}
+                className={styles.navLink}
+              >
+                {task.projectName}
+              </Link>
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Client</span>
-              {client ? (
-                <Link
-                  href={`/clients/${client.slug}`}
-                  className={styles.navLink}
-                >
-                  {task.client}
-                </Link>
-              ) : (
-                <span className={styles.metaValue}>{task.client}</span>
-              )}
+              <Link
+                href={`/clients/${task.clientSlug}`}
+                className={styles.navLink}
+              >
+                {task.clientName}
+              </Link>
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Assignee</span>
@@ -294,7 +316,9 @@ export default function TaskDetailsPage() {
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Due Date</span>
-              <span className={styles.metaValue}>{task.dueDate}</span>
+              <span className={styles.metaValue}>
+                {formatTaskDueDate(task.dueDate)}
+              </span>
             </div>
             <div className={styles.metaItem}>
               <span className={styles.metaLabel}>Priority</span>
@@ -329,6 +353,12 @@ export default function TaskDetailsPage() {
             </h2>
 
             <form className={styles.form} onSubmit={handleSubmit}>
+              {formError ? (
+                <p className={styles.error} role="alert">
+                  {formError}
+                </p>
+              ) : null}
+
               <div className={styles.field}>
                 <label htmlFor="edit-task-name" className={styles.label}>
                   Task Name *
@@ -344,6 +374,7 @@ export default function TaskDetailsPage() {
                       title: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.title)}
                   aria-describedby={
                     errors.title ? "edit-task-name-error" : undefined
@@ -363,28 +394,29 @@ export default function TaskDetailsPage() {
                 <select
                   id="edit-task-project"
                   className={styles.select}
-                  value={form.project}
+                  value={form.projectId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      project: event.target.value,
+                      projectId: event.target.value,
                     }))
                   }
-                  aria-invalid={Boolean(errors.project)}
+                  disabled={isSaving}
+                  aria-invalid={Boolean(errors.projectId)}
                   aria-describedby={
-                    errors.project ? "edit-task-project-error" : undefined
+                    errors.projectId ? "edit-task-project-error" : undefined
                   }
                 >
                   <option value="">Select a project</option>
                   {projects.map((projectOption) => (
-                    <option key={projectOption.slug} value={projectOption.name}>
+                    <option key={projectOption.id} value={projectOption.id}>
                       {projectOption.name}
                     </option>
                   ))}
                 </select>
-                {errors.project && (
+                {errors.projectId && (
                   <p id="edit-task-project-error" className={styles.error}>
-                    {errors.project}
+                    {errors.projectId}
                   </p>
                 )}
               </div>
@@ -403,6 +435,7 @@ export default function TaskDetailsPage() {
                       assignee: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.assignee)}
                   aria-describedby={
                     errors.assignee ? "edit-task-assignee-error" : undefined
@@ -437,6 +470,7 @@ export default function TaskDetailsPage() {
                       dueDate: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.dueDate)}
                   aria-describedby={
                     errors.dueDate ? "edit-task-due-date-error" : undefined
@@ -463,6 +497,7 @@ export default function TaskDetailsPage() {
                       priority: event.target.value as TaskPriority,
                     }))
                   }
+                  disabled={isSaving}
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
@@ -484,6 +519,7 @@ export default function TaskDetailsPage() {
                       status: event.target.value as TaskStatus,
                     }))
                   }
+                  disabled={isSaving}
                 >
                   <option value="To Do">To Do</option>
                   <option value="In Progress">In Progress</option>
@@ -498,11 +534,16 @@ export default function TaskDetailsPage() {
                   type="button"
                   className={styles.cancelButton}
                   onClick={closeModal}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
-                <button type="submit" className={styles.submitButton}>
-                  Save Changes
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Saving…" : "Save Changes"}
                 </button>
               </div>
             </form>
@@ -528,6 +569,12 @@ export default function TaskDetailsPage() {
               This action cannot be undone.
             </p>
 
+            {deleteError ? (
+              <p className={styles.error} role="alert">
+                {deleteError}
+              </p>
+            ) : null}
+
             <div className={styles.modalActions}>
               <button
                 type="button"
@@ -543,13 +590,12 @@ export default function TaskDetailsPage() {
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
               >
-                Delete Task
+                {isDeleting ? "Deleting…" : "Delete Task"}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </>
   );
 }
