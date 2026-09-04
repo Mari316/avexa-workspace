@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import { useAppData } from "../../../../context/AppDataContext";
+import { requireCssClass } from "../../../../lib/css-class";
 import {
   formatTaskDueDate,
   type TaskPriority,
@@ -13,17 +14,17 @@ import {
 import styles from "./page.module.css";
 
 const priorityBadgeClass: Record<TaskPriority, string> = {
-  High: styles.priorityHigh,
-  Medium: styles.priorityMedium,
-  Low: styles.priorityLow,
+  High: requireCssClass(styles.priorityHigh),
+  Medium: requireCssClass(styles.priorityMedium),
+  Low: requireCssClass(styles.priorityLow),
 };
 
 const statusBadgeClass: Record<TaskStatus, string> = {
-  "To Do": styles.statusToDo,
-  "In Progress": styles.statusInProgress,
-  Review: styles.statusReview,
-  Blocked: styles.statusBlocked,
-  Done: styles.statusDone,
+  "To Do": requireCssClass(styles.statusToDo),
+  "In Progress": requireCssClass(styles.statusInProgress),
+  Review: requireCssClass(styles.statusReview),
+  Blocked: requireCssClass(styles.statusBlocked),
+  Done: requireCssClass(styles.statusDone),
 };
 
 export default function ProjectDetailsPage() {

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { useAppData } from "../../../context/AppDataContext";
 import { useCanMutateLocalDemo } from "../../../lib/auth/use-permission";
+import { requireCssClass } from "../../../lib/css-class";
 
 import styles from "./page.module.css";
 
@@ -52,11 +53,11 @@ const categoryOptions: NoteCategory[] = [
 ];
 
 const categoryBadgeClass: Record<NoteCategory, string> = {
-  Testing: styles.categoryTesting,
-  Automation: styles.categoryAutomation,
-  Investigation: styles.categoryInvestigation,
-  Bug: styles.categoryBug,
-  General: styles.categoryGeneral,
+  Testing: requireCssClass(styles.categoryTesting),
+  Automation: requireCssClass(styles.categoryAutomation),
+  Investigation: requireCssClass(styles.categoryInvestigation),
+  Bug: requireCssClass(styles.categoryBug),
+  General: requireCssClass(styles.categoryGeneral),
 };
 
 const initialNotes: Note[] = [

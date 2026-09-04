@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 
 
+import { requireCssClass } from "../../../lib/css-class";
+
 import styles from "./page.module.css";
 
 type AuditAction = "Created" | "Updated" | "Deleted" | "Login" | "Exported";
@@ -66,11 +68,11 @@ const entityOptions: AuditEntity[] = [
 const statusOptions: AuditStatus[] = ["Success", "Failed"];
 
 const actionBadgeClass: Record<AuditAction, string> = {
-  Created: styles.actionCreated,
-  Updated: styles.actionUpdated,
-  Deleted: styles.actionDeleted,
-  Login: styles.actionLogin,
-  Exported: styles.actionExported,
+  Created: requireCssClass(styles.actionCreated),
+  Updated: requireCssClass(styles.actionUpdated),
+  Deleted: requireCssClass(styles.actionDeleted),
+  Login: requireCssClass(styles.actionLogin),
+  Exported: requireCssClass(styles.actionExported),
 };
 
 const initialAuditRecords: AuditRecord[] = [

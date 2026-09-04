@@ -9,6 +9,7 @@ import { usePermission } from "../../../../lib/auth/use-permission";
 import { ApiError } from "../../../../lib/api/request";
 import { markTaskDeleteSuccess } from "../../../../lib/deletedTasks";
 import { notifyTaskUpdated } from "../../../../lib/mockNotifications";
+import { requireCssClass } from "../../../../lib/css-class";
 import {
   formatTaskDueDate,
   type TaskPriority,
@@ -38,17 +39,17 @@ type FormErrors = {
 const assigneeOptions: TaskAssignee[] = ["Mari", "Chris", "Alex"];
 
 const priorityBadgeClass: Record<TaskPriority, string> = {
-  High: styles.priorityHigh,
-  Medium: styles.priorityMedium,
-  Low: styles.priorityLow,
+  High: requireCssClass(styles.priorityHigh),
+  Medium: requireCssClass(styles.priorityMedium),
+  Low: requireCssClass(styles.priorityLow),
 };
 
 const statusBadgeClass: Record<TaskStatus, string> = {
-  "To Do": styles.statusToDo,
-  "In Progress": styles.statusInProgress,
-  Review: styles.statusReview,
-  Blocked: styles.statusBlocked,
-  Done: styles.statusDone,
+  "To Do": requireCssClass(styles.statusToDo),
+  "In Progress": requireCssClass(styles.statusInProgress),
+  Review: requireCssClass(styles.statusReview),
+  Blocked: requireCssClass(styles.statusBlocked),
+  Done: requireCssClass(styles.statusDone),
 };
 
 function validateForm(form: EditTaskFormData): FormErrors {
