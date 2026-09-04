@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-import { assertTestDatabase } from "./assert-test-database";
+import { assertTestDatabase } from "./assert-test-database.js";
 
 export type CleanupTestDataInput = {
   /** Exact client UUIDs to remove (with dependent graph). */

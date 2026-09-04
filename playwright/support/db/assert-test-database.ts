@@ -3,7 +3,7 @@ import {
   isLocalDatabaseHost,
   parseDatabaseUrl,
   TEST_DATABASE_NAME,
-} from "../../../apps/web/server/db/test/database-url";
+} from "../../../apps/web/server/db/test/database-url.js";
 
 export type AssertTestDatabaseOptions = {
   requireLocalHost?: boolean;
