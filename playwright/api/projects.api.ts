@@ -7,6 +7,7 @@ import type {
 } from "../data/project.factory.js";
 
 export type CreatedProject = {
+  id: string;
   slug: string;
   name: string;
   clientId: string;
@@ -40,10 +41,15 @@ export async function readCreatedProject(
     throw new Error("Project response is missing data");
   }
 
+  const id = body.data.id;
   const slug = body.data.slug;
   const name = body.data.name;
   const clientId = body.data.clientId;
   const status = body.data.status;
+
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error("Project response is missing data.id");
+  }
 
   if (typeof slug !== "string" || slug.length === 0) {
     throw new Error("Project response is missing data.slug");
@@ -61,7 +67,7 @@ export async function readCreatedProject(
     throw new Error("Project response has an invalid data.status");
   }
 
-  return { slug, name, clientId, status };
+  return { id, slug, name, clientId, status };
 }
 
 function isProjectStatus(value: unknown): value is ProjectStatus {
