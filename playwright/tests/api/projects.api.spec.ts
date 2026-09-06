@@ -1,7 +1,5 @@
-import { readCreatedClient } from "../../api/clients.api.js";
 import { readCreatedProject } from "../../api/projects.api.js";
 import { readApiError } from "../../api/tasks.api.js";
-import { buildClient } from "../../data/client.factory.js";
 import { buildProject } from "../../data/project.factory.js";
 import { expect, test } from "../../fixtures/test.js";
 import { cleanupTestData } from "../../support/db/cleanup.js";
@@ -12,41 +10,25 @@ test.describe("Projects API", () => {
   test.describe("Admin (Mari)", () => {
     test.use({ storageState: "./.auth/mari.json" });
 
-    test("can create and update a project", async ({
-      clientsApi,
-      projectsApi,
-    }) => {
-      let clientSlug: string | undefined;
+    test("can create and update a project", async ({ client, projectsApi }) => {
+      const projectPayload = buildProject({ clientId: client.id });
+      const createProjectResponse = await projectsApi.createProject(projectPayload);
+      expect(createProjectResponse.status()).toBe(201);
 
-      try {
-        const createClientResponse = await clientsApi.createClient(buildClient());
-        expect(createClientResponse.status()).toBe(201);
-        const client = await readCreatedClient(createClientResponse);
-        clientSlug = client.slug;
+      const created = await readCreatedProject(createProjectResponse);
+      expect(created.name).toBe(projectPayload.name);
+      expect(created.clientId).toBe(client.id);
 
-        const projectPayload = buildProject({ clientId: client.id });
-        const createProjectResponse = await projectsApi.createProject(projectPayload);
-        expect(createProjectResponse.status()).toBe(201);
+      const nextStatus = created.status === "Active" ? "On Hold" : "Active";
+      const updateResponse = await projectsApi.updateProject(created.slug, {
+        status: nextStatus,
+      });
+      expect(updateResponse.status()).toBe(200);
 
-        const created = await readCreatedProject(createProjectResponse);
-        expect(created.name).toBe(projectPayload.name);
-        expect(created.clientId).toBe(client.id);
-
-        const nextStatus = created.status === "Active" ? "On Hold" : "Active";
-        const updateResponse = await projectsApi.updateProject(created.slug, {
-          status: nextStatus,
-        });
-        expect(updateResponse.status()).toBe(200);
-
-        const getResponse = await projectsApi.getProject(created.slug);
-        expect(getResponse.status()).toBe(200);
-        const fetched = await readCreatedProject(getResponse);
-        expect(fetched.status).toBe(nextStatus);
-      } finally {
-        if (clientSlug) {
-          await cleanupTestData({ clientSlugs: [clientSlug] });
-        }
-      }
+      const getResponse = await projectsApi.getProject(created.slug);
+      expect(getResponse.status()).toBe(200);
+      const fetched = await readCreatedProject(getResponse);
+      expect(fetched.status).toBe(nextStatus);
     });
 
     test("rejects a project with an empty name", async ({ projectsApi }) => {

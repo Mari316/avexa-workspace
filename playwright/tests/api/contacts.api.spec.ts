@@ -1,10 +1,7 @@
-import { readCreatedClient } from "../../api/clients.api.js";
 import { readCreatedContact } from "../../api/contacts.api.js";
 import { readApiError } from "../../api/tasks.api.js";
-import { buildClient } from "../../data/client.factory.js";
 import { buildContact } from "../../data/contact.factory.js";
 import { expect, test } from "../../fixtures/test.js";
-import { cleanupTestData } from "../../support/db/cleanup.js";
 
 const SEED_CLIENT_ID = "11111111-1111-4111-8111-111111111111";
 
@@ -12,40 +9,24 @@ test.describe("Contacts API", () => {
   test.describe("Admin (Mari)", () => {
     test.use({ storageState: "./.auth/mari.json" });
 
-    test("can create and update a contact", async ({
-      clientsApi,
-      contactsApi,
-    }) => {
-      let clientSlug: string | undefined;
+    test("can create and update a contact", async ({ client, contactsApi }) => {
+      const contactPayload = buildContact({ clientId: client.id });
+      const createContactResponse = await contactsApi.createContact(contactPayload);
+      expect(createContactResponse.status()).toBe(201);
 
-      try {
-        const createClientResponse = await clientsApi.createClient(buildClient());
-        expect(createClientResponse.status()).toBe(201);
-        const client = await readCreatedClient(createClientResponse);
-        clientSlug = client.slug;
+      const created = await readCreatedContact(createContactResponse);
+      expect(created.email).toBe(contactPayload.email);
+      expect(created.clientId).toBe(client.id);
 
-        const contactPayload = buildContact({ clientId: client.id });
-        const createContactResponse = await contactsApi.createContact(contactPayload);
-        expect(createContactResponse.status()).toBe(201);
+      const updateResponse = await contactsApi.updateContact(created.slug, {
+        role: "Lead Tester",
+      });
+      expect(updateResponse.status()).toBe(200);
 
-        const created = await readCreatedContact(createContactResponse);
-        expect(created.email).toBe(contactPayload.email);
-        expect(created.clientId).toBe(client.id);
-
-        const updateResponse = await contactsApi.updateContact(created.slug, {
-          role: "Lead Tester",
-        });
-        expect(updateResponse.status()).toBe(200);
-
-        const getResponse = await contactsApi.getContact(created.slug);
-        expect(getResponse.status()).toBe(200);
-        const fetched = await readCreatedContact(getResponse);
-        expect(fetched.role).toBe("Lead Tester");
-      } finally {
-        if (clientSlug) {
-          await cleanupTestData({ clientSlugs: [clientSlug] });
-        }
-      }
+      const getResponse = await contactsApi.getContact(created.slug);
+      expect(getResponse.status()).toBe(200);
+      const fetched = await readCreatedContact(getResponse);
+      expect(fetched.role).toBe("Lead Tester");
     });
 
     test("rejects a contact with an invalid email", async ({ contactsApi }) => {

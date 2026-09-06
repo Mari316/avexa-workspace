@@ -2,39 +2,22 @@ import { readCreatedClient } from "../../api/clients.api.js";
 import { readApiError } from "../../api/tasks.api.js";
 import { buildClient } from "../../data/client.factory.js";
 import { expect, test } from "../../fixtures/test.js";
-import { cleanupTestData } from "../../support/db/cleanup.js";
 
 test.describe("Clients API", () => {
   test.describe("Admin (Mari)", () => {
     test.use({ storageState: "./.auth/mari.json" });
 
-    test("can create and update a client", async ({ clientsApi }) => {
-      const clientPayload = buildClient();
-      let createdSlug: string | undefined;
+    test("can create and update a client", async ({ client, clientsApi }) => {
+      const nextStatus = client.status === "Active" ? "On Hold" : "Active";
+      const updateResponse = await clientsApi.updateClient(client.slug, {
+        status: nextStatus,
+      });
+      expect(updateResponse.status()).toBe(200);
 
-      try {
-        const createResponse = await clientsApi.createClient(clientPayload);
-        expect(createResponse.status()).toBe(201);
-
-        const created = await readCreatedClient(createResponse);
-        expect(created.name).toBe(clientPayload.name);
-        createdSlug = created.slug;
-
-        const nextStatus = created.status === "Active" ? "On Hold" : "Active";
-        const updateResponse = await clientsApi.updateClient(created.slug, {
-          status: nextStatus,
-        });
-        expect(updateResponse.status()).toBe(200);
-
-        const getResponse = await clientsApi.getClient(created.slug);
-        expect(getResponse.status()).toBe(200);
-        const fetched = await readCreatedClient(getResponse);
-        expect(fetched.status).toBe(nextStatus);
-      } finally {
-        if (createdSlug) {
-          await cleanupTestData({ clientSlugs: [createdSlug] });
-        }
-      }
+      const getResponse = await clientsApi.getClient(client.slug);
+      expect(getResponse.status()).toBe(200);
+      const fetched = await readCreatedClient(getResponse);
+      expect(fetched.status).toBe(nextStatus);
     });
 
     test("rejects a client with an empty name", async ({ clientsApi }) => {

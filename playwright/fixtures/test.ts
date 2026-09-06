@@ -1,10 +1,16 @@
 import { test as base, expect } from "@playwright/test";
 
-import { ClientsApi } from "../api/clients.api.js";
+import {
+  ClientsApi,
+  readCreatedClient,
+  type CreatedClient,
+} from "../api/clients.api.js";
 import { ContactsApi } from "../api/contacts.api.js";
 import { ProjectsApi } from "../api/projects.api.js";
 import { TasksApi } from "../api/tasks.api.js";
+import { buildClient } from "../data/client.factory.js";
 import { ClientsPage } from "../pages/clients.page.js";
+import { cleanupTestData } from "../support/db/cleanup.js";
 
 type Fixtures = {
   tasksApi: TasksApi;
@@ -12,6 +18,7 @@ type Fixtures = {
   projectsApi: ProjectsApi;
   contactsApi: ContactsApi;
   clientsPage: ClientsPage;
+  client: CreatedClient;
 };
 
 export const test = base.extend<Fixtures>({
@@ -29,6 +36,22 @@ export const test = base.extend<Fixtures>({
   },
   clientsPage: async ({ page }, use) => {
     await use(new ClientsPage(page));
+  },
+  client: async ({ clientsApi }, use) => {
+    const payload = buildClient();
+    const response = await clientsApi.createClient(payload);
+
+    if (response.status() !== 201) {
+      throw new Error(
+        `Failed to create owned client for fixture setup: HTTP ${response.status()}`,
+      );
+    }
+
+    const created = await readCreatedClient(response);
+
+    await use(created);
+
+    await cleanupTestData({ clientSlugs: [created.slug] });
   },
 });
 
