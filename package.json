@@ -8,6 +8,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "test:e2e": "npm run db:test:prepare && npm run test -w @avexa/playwright",
+    "test:api": "npm run db:test:prepare && npm run test:api -w @avexa/playwright",
+    "test:e2e:ui": "npm run db:test:prepare && npm run test:e2e-ui -w @avexa/playwright",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down",
     "db:generate": "npm run db:generate -w web",

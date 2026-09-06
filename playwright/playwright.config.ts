@@ -86,7 +86,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: "html",
+  workers: process.env.CI ? 2 : undefined,
+  reporter: [
+    ["list"],
+    ["html", { open: process.env.CI ? "never" : "on-failure" }],
+  ],
   use: {
     baseURL,
     headless: true,
