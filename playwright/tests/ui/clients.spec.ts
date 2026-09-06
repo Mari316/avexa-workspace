@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { cleanupTestData } from "../support/db/cleanup.js";
+import { cleanupTestData } from "../../support/db/cleanup.js";
 
 test("user can navigate to Clients page", async ({ page }) => {
   await page.goto("/");
