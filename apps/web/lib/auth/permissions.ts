@@ -26,7 +26,11 @@ export type Permission =
   | "notes:read"
   | "notes:create"
   | "notes:update"
-  | "notes:delete";
+  | "notes:delete"
+  | "resources:read"
+  | "resources:create"
+  | "resources:update"
+  | "resources:delete";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   admin: [
@@ -49,6 +53,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "notes:create",
     "notes:update",
     "notes:delete",
+    "resources:read",
+    "resources:create",
+    "resources:update",
+    "resources:delete",
   ],
   qa_engineer: [
     "dashboard:read",
@@ -66,6 +74,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "notes:create",
     "notes:update",
     "notes:delete",
+    "resources:read",
+    "resources:create",
+    "resources:update",
+    "resources:delete",
   ],
   viewer: [
     "dashboard:read",
@@ -75,6 +87,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "projects:read",
     "tasks:read",
     "notes:read",
+    "resources:read",
   ],
 };
 

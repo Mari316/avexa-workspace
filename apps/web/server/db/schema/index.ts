@@ -3,6 +3,7 @@ export * from "./contacts";
 export * from "./projects";
 export * from "./tasks";
 export * from "./notes";
+export * from "./resources";
 export * from "./audit-events";
 export * from "./auth";
 export * from "./user-settings";

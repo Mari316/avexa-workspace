@@ -29,7 +29,7 @@ export type CleanupTestDataInput = {
   clientSlugs?: string[];
   /** Exact client names to remove (with dependent graph). */
   clientNames?: string[];
-  /** Exact project UUIDs (and their tasks and notes). */
+  /** Exact project UUIDs (and their tasks, notes, and resources). */
   projectIds?: string[];
   projectSlugs?: string[];
   /** Exact task UUIDs / slugs. */
@@ -38,6 +38,8 @@ export type CleanupTestDataInput = {
   /** Exact note UUIDs / slugs. */
   noteIds?: string[];
   noteSlugs?: string[];
+  /** Exact resource UUIDs. */
+  resourceIds?: string[];
   /** Exact contact UUIDs / slugs (clears primary_contact_id first). */
   contactIds?: string[];
   contactSlugs?: string[];
@@ -70,6 +72,7 @@ export async function cleanupTestData(
     const projectIds = new Set(input.projectIds ?? []);
     const taskIds = new Set(input.taskIds ?? []);
     const noteIds = new Set(input.noteIds ?? []);
+    const resourceIds = new Set(input.resourceIds ?? []);
     const contactIds = new Set(input.contactIds ?? []);
 
     if (input.clientSlugs?.length) {
@@ -169,6 +172,20 @@ export async function cleanupTestData(
       for (const row of projectNotes.rows) {
         noteIds.add(row.id);
       }
+
+      const projectResources = await client.query<{ id: string }>(
+        `SELECT id FROM resources WHERE project_id = ANY($1::uuid[])`,
+        [projectIdList],
+      );
+      for (const row of projectResources.rows) {
+        resourceIds.add(row.id);
+      }
+    }
+
+    if (resourceIds.size > 0) {
+      await client.query(`DELETE FROM resources WHERE id = ANY($1::uuid[])`, [
+        [...resourceIds],
+      ]);
     }
 
     if (noteIds.size > 0) {

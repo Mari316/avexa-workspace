@@ -15,6 +15,7 @@ import { applyTestDatabaseEnv } from "./load-test-env";
 const TRUNCATE_TABLES = [
   "user_settings",
   "audit_events",
+  "resources",
   "notes",
   "tasks",
   "projects",

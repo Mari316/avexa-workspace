@@ -21,6 +21,7 @@ export type ApiErrorCode =
   | "TASK_SLUG_CONFLICT"
   | "NOTE_TITLE_NOT_SLUGGABLE"
   | "NOTE_NOT_FOUND"
+  | "RESOURCE_NOT_FOUND"
   | "INTERNAL_ERROR";
 
 type ErrorDetail = {
