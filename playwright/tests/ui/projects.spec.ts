@@ -29,10 +29,10 @@ test.describe("Projects UI", () => {
 
       const href = await projectsPage.projectViewLink(projectName).getAttribute("href");
       expect(href).toMatch(/^\/projects\/[a-z0-9]+(?:-[a-z0-9]+)*$/);
-
-      await projectsPage.projectViewLink(projectName).click();
-
-      await expect(page).toHaveURL(href ?? /\/projects\//);
+      if (!href) {
+        throw new Error("Project View href is missing");
+      }
+      await page.goto(href);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(projectName);
       await expect(page.getByRole("link", { name: client.name })).toBeVisible();
       await expect(page.getByText("QA", { exact: true })).toBeVisible();

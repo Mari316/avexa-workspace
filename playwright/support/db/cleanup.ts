@@ -7,6 +7,8 @@ export type CleanupTestDataInput = {
   clientIds?: string[];
   /** Exact client slugs to remove (with dependent graph). */
   clientSlugs?: string[];
+  /** Exact client names to remove (with dependent graph). */
+  clientNames?: string[];
   /** Exact project UUIDs (and their tasks). */
   projectIds?: string[];
   projectSlugs?: string[];
@@ -50,6 +52,16 @@ export async function cleanupTestData(
       const result = await client.query<{ id: string }>(
         `SELECT id FROM clients WHERE slug = ANY($1::text[])`,
         [input.clientSlugs],
+      );
+      for (const row of result.rows) {
+        clientIds.add(row.id);
+      }
+    }
+
+    if (input.clientNames?.length) {
+      const result = await client.query<{ id: string }>(
+        `SELECT id FROM clients WHERE name = ANY($1::text[])`,
+        [input.clientNames],
       );
       for (const row of result.rows) {
         clientIds.add(row.id);

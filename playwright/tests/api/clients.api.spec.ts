@@ -1,5 +1,5 @@
 import { readCreatedClient } from "../../api/clients.api.js";
-import { readApiError } from "../../api/tasks.api.js";
+import { readApiError } from "../../api/errors.js";
 import { buildClient } from "../../data/client.factory.js";
 import { expect, test } from "../../fixtures/test.js";
 

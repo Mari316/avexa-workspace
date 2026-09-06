@@ -6,10 +6,16 @@ test.describe("Viewer (Alex)", () => {
   test("hides representative mutation controls in the UI", async ({
     page,
     clientsPage,
+    contactsPage,
   }) => {
     await clientsPage.goto();
     await expect(clientsPage.heading).toBeVisible();
     await expect(clientsPage.addClientButton).toHaveCount(0);
+
+    await contactsPage.goto();
+    await expect(contactsPage.heading).toBeVisible();
+    await expect(contactsPage.addContactButton).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
 
     await page.goto("/projects");
     await expect(

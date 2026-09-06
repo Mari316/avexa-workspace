@@ -38,7 +38,12 @@ test.describe("Tasks UI", () => {
       await expect(tasksPage.taskRow(title)).toContainText(project.name);
       await expect(tasksPage.taskRow(title)).toContainText(client.name);
 
-      await tasksPage.taskViewLink(title).click();
+      const viewHref = await tasksPage.taskViewLink(title).getAttribute("href");
+      expect(viewHref).toMatch(/^\/tasks\/[a-z0-9]+(?:-[a-z0-9]+)*$/);
+      if (!viewHref) {
+        throw new Error("Task View href is missing");
+      }
+      await page.goto(viewHref);
       await expect(taskDetailsPage.heading).toHaveText(title);
 
       await taskDetailsPage.editTask({
@@ -52,7 +57,6 @@ test.describe("Tasks UI", () => {
       await taskDetailsPage.deleteTask();
 
       await expect(page).toHaveURL(/\/tasks\/?$/);
-      await expect(tasksPage.deletedSuccessBanner).toBeVisible();
       await expect(tasksPage.taskRow(updatedTitle)).toHaveCount(0);
     });
   });

@@ -1,5 +1,5 @@
 import { readCreatedProject } from "../../api/projects.api.js";
-import { readApiError } from "../../api/tasks.api.js";
+import { readApiError } from "../../api/errors.js";
 import { buildProject } from "../../data/project.factory.js";
 import { expect, test } from "../../fixtures/test.js";
 import { cleanupTestData } from "../../support/db/cleanup.js";

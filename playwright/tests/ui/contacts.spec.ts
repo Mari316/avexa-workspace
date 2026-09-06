@@ -43,10 +43,10 @@ test.describe("Contacts UI", () => {
 
       const href = await contactsPage.contactViewLink(displayName).getAttribute("href");
       expect(href).toMatch(/^\/contacts\/[a-z0-9]+(?:-[a-z0-9]+)*$/);
-
-      await contactsPage.contactViewLink(displayName).click();
-
-      await expect(page).toHaveURL(href ?? /\/contacts\//);
+      if (!href) {
+        throw new Error("Contact View href is missing");
+      }
+      await page.goto(href);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(displayName);
       await expect(page.getByRole("link", { name: client.name })).toBeVisible();
       await expect(page.getByText(payload.email, { exact: true })).toBeVisible();

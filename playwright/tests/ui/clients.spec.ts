@@ -9,19 +9,15 @@ test("user can navigate to Clients page", async ({ clientsPage }) => {
 test("user can add a new client", async ({ clientsPage }) => {
   await clientsPage.goto();
 
-  const clientName = `PW clients-add ${Date.now()}`;
-  let createdSlug: string | undefined;
+  const clientName = `PW clients-add ${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 
   try {
     await clientsPage.createClient({ name: clientName, status: "Active" });
     await expect(clientsPage.clientRow(clientName)).toBeVisible();
 
     const href = await clientsPage.clientViewLink(clientName).getAttribute("href");
-    createdSlug = href?.split("/").filter(Boolean).pop();
-    expect(createdSlug).toBeTruthy();
+    expect(href).toMatch(/^\/clients\/[a-z0-9]+(?:-[a-z0-9]+)*$/);
   } finally {
-    if (createdSlug) {
-      await cleanupTestData({ clientSlugs: [createdSlug] });
-    }
+    await cleanupTestData({ clientNames: [clientName] });
   }
 });

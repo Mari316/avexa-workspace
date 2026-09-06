@@ -1,4 +1,5 @@
-import { readApiError, readCreatedTask } from "../../api/tasks.api.js";
+import { readApiError } from "../../api/errors.js";
+import { readCreatedTask } from "../../api/tasks.api.js";
 import { buildTask } from "../../data/task.factory.js";
 import { expect, test } from "../../fixtures/test.js";
 

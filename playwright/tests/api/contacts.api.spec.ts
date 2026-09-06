@@ -1,5 +1,5 @@
 import { readCreatedContact } from "../../api/contacts.api.js";
-import { readApiError } from "../../api/tasks.api.js";
+import { readApiError } from "../../api/errors.js";
 import { buildContact } from "../../data/contact.factory.js";
 import { expect, test } from "../../fixtures/test.js";
 
