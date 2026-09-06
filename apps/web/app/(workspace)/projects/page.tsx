@@ -6,6 +6,7 @@ import { FormEvent, useState } from "react";
 import { useAppData } from "../../../context/AppDataContext";
 import { usePermission } from "../../../lib/auth/use-permission";
 import { ApiError } from "../../../lib/api/request";
+import { useUserSettings } from "../../../lib/use-user-settings";
 import { type ProjectStatus } from "../../../lib/mockData";
 
 import styles from "./page.module.css";
@@ -44,6 +45,15 @@ const emptyForm: ProjectFormData = {
   environment: "",
   status: "Active",
 };
+
+function newProjectForm(
+  defaultEnvironment: string | null | undefined,
+): ProjectFormData {
+  return {
+    ...emptyForm,
+    environment: defaultEnvironment ?? "",
+  };
+}
 
 function validateForm(form: ProjectFormData): FormErrors {
   const errors: FormErrors = {};
@@ -94,6 +104,7 @@ export default function ProjectsPage() {
     addProject,
   } = useAppData();
   const canCreateProject = usePermission("projects:create");
+  const settings = useUserSettings();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ProjectFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -101,7 +112,7 @@ export default function ProjectsPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   function openModal() {
-    setForm(emptyForm);
+    setForm(newProjectForm(settings?.defaultEnvironment));
     setErrors({});
     setFormError("");
     setIsModalOpen(true);
@@ -113,7 +124,7 @@ export default function ProjectsPage() {
     }
 
     setIsModalOpen(false);
-    setForm(emptyForm);
+    setForm(newProjectForm(settings?.defaultEnvironment));
     setErrors({});
     setFormError("");
   }
@@ -139,7 +150,7 @@ export default function ProjectsPage() {
         status: form.status,
       });
       setIsModalOpen(false);
-      setForm(emptyForm);
+      setForm(newProjectForm(settings?.defaultEnvironment));
       setErrors({});
       setFormError("");
     } catch (error) {

@@ -13,6 +13,7 @@ import { applyTestDatabaseEnv } from "./load-test-env";
 
 /** Application + Better Auth data tables. Migration journal is intentionally omitted. */
 const TRUNCATE_TABLES = [
+  "user_settings",
   "audit_events",
   "notes",
   "tasks",

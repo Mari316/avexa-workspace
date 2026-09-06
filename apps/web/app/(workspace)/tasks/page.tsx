@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAppData, type TaskView } from "../../../context/AppDataContext";
 import { usePermission } from "../../../lib/auth/use-permission";
 import { ApiError } from "../../../lib/api/request";
+import { useUserSettings } from "../../../lib/use-user-settings";
 import {
   clearTaskDeleteSuccess,
   hasTaskDeleteSuccess,
@@ -122,6 +123,13 @@ const emptyForm: TaskFormData = {
   status: "To Do",
 };
 
+function newTaskForm(defaultAssignee: string | null | undefined): TaskFormData {
+  return {
+    ...emptyForm,
+    assignee: defaultAssignee ?? "",
+  };
+}
+
 const priorityBadgeClass: Record<TaskPriority, string> = {
   High: requireCssClass(styles.priorityHigh),
   Medium: requireCssClass(styles.priorityMedium),
@@ -193,6 +201,7 @@ export default function TasksPage() {
     getProjectsByClientId,
   } = useAppData();
   const canCreateTask = usePermission("tasks:create");
+  const settings = useUserSettings();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -239,7 +248,7 @@ export default function TasksPage() {
   }
 
   function openModal() {
-    setForm(emptyForm);
+    setForm(newTaskForm(settings?.defaultAssignee));
     setErrors({});
     setFormError("");
     setIsModalOpen(true);
@@ -251,7 +260,7 @@ export default function TasksPage() {
     }
 
     setIsModalOpen(false);
-    setForm(emptyForm);
+    setForm(newTaskForm(settings?.defaultAssignee));
     setErrors({});
     setFormError("");
   }
@@ -280,7 +289,7 @@ export default function TasksPage() {
       });
       notifyTaskCreated(created.title, created.slug);
       setIsModalOpen(false);
-      setForm(emptyForm);
+      setForm(newTaskForm(settings?.defaultAssignee));
       setErrors({});
       setFormError("");
     } catch (error) {

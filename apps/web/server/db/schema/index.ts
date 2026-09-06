@@ -5,3 +5,4 @@ export * from "./tasks";
 export * from "./notes";
 export * from "./audit-events";
 export * from "./auth";
+export * from "./user-settings";
