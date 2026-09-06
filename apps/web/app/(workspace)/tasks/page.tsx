@@ -6,7 +6,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAppData, type TaskView } from "../../../context/AppDataContext";
 import { usePermission } from "../../../lib/auth/use-permission";
 import { ApiError } from "../../../lib/api/request";
-import { consumeDeleteSuccessMessage } from "../../../lib/deletedTasks";
+import {
+  clearTaskDeleteSuccess,
+  hasTaskDeleteSuccess,
+} from "../../../lib/deletedTasks";
 import { notifyTaskCreated } from "../../../lib/mockNotifications";
 import { requireCssClass } from "../../../lib/css-class";
 import {
@@ -199,17 +202,25 @@ export default function TasksPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (!consumeDeleteSuccessMessage()) {
+    if (!hasTaskDeleteSuccess()) {
       return;
     }
 
     setShowSuccessBanner(true);
 
-    const timer = window.setTimeout(() => {
+    // Delay consume so a Strict Mode remount can still read the flag.
+    const consumeTimer = window.setTimeout(() => {
+      clearTaskDeleteSuccess();
+    }, 0);
+
+    const hideTimer = window.setTimeout(() => {
       setShowSuccessBanner(false);
     }, 5000);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(consumeTimer);
+      window.clearTimeout(hideTimer);
+    };
   }, []);
 
   const filteredTasks = useMemo(

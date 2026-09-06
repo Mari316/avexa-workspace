@@ -35,10 +35,24 @@ function searchItems(items: SearchResult[], query: string): SearchResult[] {
 }
 
 export default function SearchBar() {
-  const { clients, projects, tasks, contacts } = useAppDataState();
+  const {
+    clients,
+    projects,
+    tasks,
+    contacts,
+    isLoadingClients,
+    isLoadingContacts,
+    isLoadingProjects,
+    isLoadingTasks,
+  } = useAppDataState();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const isSearchIndexLoading =
+    isLoadingClients ||
+    isLoadingContacts ||
+    isLoadingProjects ||
+    isLoadingTasks;
 
   const searchIndex = useMemo(() => {
     const clientResults: SearchResult[] = clients.map((client) => ({
@@ -142,8 +156,11 @@ export default function SearchBar() {
           className={styles.dropdown}
           role="listbox"
           aria-label="Search results"
+          aria-busy={isSearchIndexLoading}
         >
-          {results.length === 0 ? (
+          {isSearchIndexLoading ? (
+            <p className={styles.noResults}>Loading…</p>
+          ) : results.length === 0 ? (
             <p className={styles.noResults}>No results found</p>
           ) : (
             results.map((result) => (

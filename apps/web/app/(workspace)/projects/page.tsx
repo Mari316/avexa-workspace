@@ -196,6 +196,12 @@ export default function ProjectsPage() {
                     Loading projects…
                   </td>
                 </tr>
+              ) : !projectsError && projects.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className={styles.secondaryText}>
+                    No projects yet.
+                  </td>
+                </tr>
               ) : (
                 projects.map((project) => (
                   <tr key={project.id}>
