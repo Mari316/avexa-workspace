@@ -8,6 +8,7 @@ const {
   seedClientsTable,
   seedContactsTable,
   seedPrimaryContacts,
+  seedNotesTable,
   seedProjectsTable,
   seedTasksTable,
 } = await import("../../seed/seed");
@@ -20,6 +21,7 @@ async function main(): Promise<void> {
   await seedContactsTable();
   await seedPrimaryContacts();
   await seedProjectsTable();
+  await seedNotesTable();
   await seedTasksTable();
   await seedAuthUsers();
 
@@ -35,6 +37,9 @@ async function main(): Promise<void> {
   const [tasks] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(schema.tasks);
+  const [notes] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(schema.notes);
   const [users] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(schema.user);
@@ -42,7 +47,8 @@ async function main(): Promise<void> {
   console.log(
     `Test DB seed complete. clients=${clients?.total ?? 0}, ` +
       `contacts=${contacts?.total ?? 0}, projects=${projects?.total ?? 0}, ` +
-      `tasks=${tasks?.total ?? 0}, users=${users?.total ?? 0}.`,
+      `tasks=${tasks?.total ?? 0}, notes=${notes?.total ?? 0}, ` +
+      `users=${users?.total ?? 0}.`,
   );
 }
 

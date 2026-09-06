@@ -8,11 +8,13 @@ import {
   account,
   clients,
   contacts,
+  notes,
   projects,
   tasks,
   user,
   type NewClientRow,
   type NewContactRow,
+  type NewNoteRow,
   type NewProjectRow,
   type NewTaskRow,
 } from "../db/schema";
@@ -22,6 +24,8 @@ import {
   seedClients,
   seedContactId,
   seedContacts,
+  seedNoteId,
+  seedNotes,
   seedProjectId,
   seedProjects,
   seedTaskId,
@@ -29,6 +33,7 @@ import {
   seedUsers,
   type SeedClient,
   type SeedContact,
+  type SeedNote,
   type SeedProject,
   type SeedTask,
 } from "./data";
@@ -76,6 +81,19 @@ function toTaskRow(task: SeedTask): NewTaskRow {
     dueDate: task.dueDate,
     priority: task.priority,
     status: task.status,
+  };
+}
+
+function toNoteRow(note: SeedNote): NewNoteRow {
+  return {
+    id: seedNoteId(note.slug),
+    slug: note.slug,
+    title: note.title,
+    content: note.content,
+    category: note.category,
+    pinned: note.pinned,
+    projectId: seedProjectId(note.projectSlug),
+    author: note.author,
   };
 }
 
@@ -176,6 +194,32 @@ export async function seedProjectsTable(): Promise<void> {
   }
 }
 
+export async function seedNotesTable(): Promise<void> {
+  for (const note of seedNotes) {
+    await db
+      .insert(notes)
+      .values(toNoteRow(note))
+      .onConflictDoUpdate({
+        target: notes.slug,
+        set: {
+          title: sql`excluded.title`,
+          content: sql`excluded.content`,
+          category: sql`excluded.category`,
+          pinned: sql`excluded.pinned`,
+          projectId: sql`excluded.project_id`,
+          author: sql`excluded.author`,
+          updatedAt: sql`now()`,
+        },
+        setWhere: sql`notes.title IS DISTINCT FROM excluded.title
+          OR notes.content IS DISTINCT FROM excluded.content
+          OR notes.category IS DISTINCT FROM excluded.category
+          OR notes.pinned IS DISTINCT FROM excluded.pinned
+          OR notes.project_id IS DISTINCT FROM excluded.project_id
+          OR notes.author IS DISTINCT FROM excluded.author`,
+      });
+  }
+}
+
 export async function seedTasksTable(): Promise<void> {
   for (const task of seedTasks) {
     await db
@@ -257,6 +301,7 @@ async function main(): Promise<void> {
   await seedContactsTable();
   await seedPrimaryContacts();
   await seedProjectsTable();
+  await seedNotesTable();
   await seedTasksTable();
   await seedAuthUsers();
 
@@ -275,6 +320,9 @@ async function main(): Promise<void> {
   const [taskTotals] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(tasks);
+  const [noteTotals] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(notes);
   const [userTotals] = await db
     .select({ total: sql<number>`count(*)::int` })
     .from(user);
@@ -292,6 +340,7 @@ async function main(): Promise<void> {
       `contacts=${contactTotals?.total ?? 0}, ` +
       `projects=${projectTotals?.total ?? 0}, ` +
       `tasks=${taskTotals?.total ?? 0}, ` +
+      `notes=${noteTotals?.total ?? 0}, ` +
       `users=${userTotals?.total ?? 0} ` +
       `(credential accounts: ${credentialTotals?.total ?? 0}).`,
   );

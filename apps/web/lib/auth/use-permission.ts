@@ -20,7 +20,7 @@ export function usePermission(permission: Permission): boolean {
   return hasPermission(role, permission);
 }
 
-/** UX-only: Admin/QA may use local Notes/Resources/Team mutations; Viewer hides them. */
+/** UX-only: Admin/QA may use local Resources/Team mutations; Viewer hides them. */
 export function useCanMutateLocalDemo(): boolean {
   const { data: session } = authClient.useSession();
   const roleValue = session?.user?.role;

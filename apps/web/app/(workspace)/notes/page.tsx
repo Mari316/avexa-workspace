@@ -3,34 +3,25 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { useAppData } from "../../../context/AppDataContext";
-import { useCanMutateLocalDemo } from "../../../lib/auth/use-permission";
+import {
+  createNote,
+  deleteNote,
+  listNotes,
+  updateNote,
+  type NoteDTO,
+} from "../../../lib/api/notes";
+import { ApiError } from "../../../lib/api/request";
+import { usePermission } from "../../../lib/auth/use-permission";
 import { requireCssClass } from "../../../lib/css-class";
 
 import styles from "./page.module.css";
 
-type NoteCategory =
-  | "Testing"
-  | "Automation"
-  | "Investigation"
-  | "Bug"
-  | "General";
-
-type Note = {
-  id: string;
-  title: string;
-  content: string;
-  client: string;
-  project: string;
-  author: string;
-  createdDate: string;
-  category: NoteCategory;
-  pinned: boolean;
-};
+type NoteCategory = NoteDTO["category"];
 
 type NoteFormData = {
   title: string;
-  client: string;
-  project: string;
+  clientId: string;
+  projectId: string;
   category: string;
   content: string;
   pinned: boolean;
@@ -38,8 +29,8 @@ type NoteFormData = {
 
 type FormErrors = {
   title?: string;
-  client?: string;
-  project?: string;
+  clientId?: string;
+  projectId?: string;
   category?: string;
   content?: string;
 };
@@ -60,71 +51,38 @@ const categoryBadgeClass: Record<NoteCategory, string> = {
   General: requireCssClass(styles.categoryGeneral),
 };
 
-const initialNotes: Note[] = [
-  {
-    id: "note-1",
-    title: "Regression Testing Notes",
-    content:
-      "Regression coverage should include client creation, updates, and portal access flows.",
-    client: "Pax8",
-    project: "Account Management",
-    author: "Mari",
-    createdDate: "Aug 5",
-    category: "Testing",
-    pinned: true,
-  },
-  {
-    id: "note-2",
-    title: "API Investigation",
-    content:
-      "Validate error responses and authentication behavior before adding additional automation coverage.",
-    client: "Pax8",
-    project: "Public API",
-    author: "Mari",
-    createdDate: "Aug 6",
-    category: "Investigation",
-    pinned: false,
-  },
-  {
-    id: "note-3",
-    title: "OrangeHRM Automation",
-    content:
-      "Prioritize employee management and login flows for Playwright coverage.",
-    client: "OrangeHRM",
-    project: "OrangeHRM Automation",
-    author: "Mari",
-    createdDate: "Aug 7",
-    category: "Automation",
-    pinned: false,
-  },
-  {
-    id: "note-4",
-    title: "Login Bug Findings",
-    content:
-      "Login issue appears intermittently when the session has expired.",
-    client: "Lemonade",
-    project: "Lemonade Web",
-    author: "Alex",
-    createdDate: "Aug 7",
-    category: "Bug",
-    pinned: false,
-  },
-];
-
 const emptyForm: NoteFormData = {
   title: "",
-  client: "",
-  project: "",
+  clientId: "",
+  projectId: "",
   category: "",
   content: "",
   pinned: false,
 };
 
-function formatCreatedDate(date: Date): string {
-  return date.toLocaleDateString("en-US", {
+function formatCreatedDate(value: string): string {
+  return new Date(value).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
+}
+
+function compareNotes(left: NoteDTO, right: NoteDTO): number {
+  if (left.pinned !== right.pinned) {
+    return left.pinned ? -1 : 1;
+  }
+
+  const created = left.createdAt.localeCompare(right.createdAt);
+
+  if (created !== 0) {
+    return created;
+  }
+
+  return left.slug.localeCompare(right.slug);
+}
+
+function sortNotes(notes: NoteDTO[]): NoteDTO[] {
+  return [...notes].sort(compareNotes);
 }
 
 function validateForm(form: NoteFormData): FormErrors {
@@ -134,12 +92,12 @@ function validateForm(form: NoteFormData): FormErrors {
     errors.title = "Title is required.";
   }
 
-  if (!form.client) {
-    errors.client = "Client is required.";
+  if (!form.clientId) {
+    errors.clientId = "Client is required.";
   }
 
-  if (!form.project) {
-    errors.project = "Project is required.";
+  if (!form.projectId) {
+    errors.projectId = "Project is required.";
   }
 
   if (!form.category) {
@@ -153,48 +111,97 @@ function validateForm(form: NoteFormData): FormErrors {
   return errors;
 }
 
-function noteToFormData(note: Note): NoteFormData {
+function noteToFormData(note: NoteDTO): NoteFormData {
   return {
     title: note.title,
-    client: note.client,
-    project: note.project,
+    clientId: note.clientId,
+    projectId: note.projectId,
     category: note.category,
     content: note.content,
     pinned: note.pinned,
   };
 }
 
+function toFormErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "NOTE_TITLE_NOT_SLUGGABLE":
+        return "Enter a note title containing letters or numbers.";
+      case "PROJECT_NOT_FOUND":
+        return "The selected project does not exist.";
+      case "NOTE_NOT_FOUND":
+        return "That note is no longer available.";
+      case "VALIDATION_ERROR":
+        return "Please check the values you entered and try again.";
+      case "NETWORK_ERROR":
+        return "Unable to reach the server. Please try again.";
+      default:
+        return "Something went wrong. Please try again.";
+    }
+  }
+
+  return "Something went wrong. Please try again.";
+}
+
 export default function NotesPage() {
-  const { clients, projects } = useAppData();
-  const canMutateLocal = useCanMutateLocalDemo();
-  const [notes, setNotes] = useState<Note[]>(initialNotes);
+  const { clients, getProjectsByClientId } = useAppData();
+  const canCreateNote = usePermission("notes:create");
+  const canUpdateNote = usePermission("notes:update");
+  const canDeleteNote = usePermission("notes:delete");
+  const [notes, setNotes] = useState<NoteDTO[]>([]);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(true);
+  const [notesError, setNotesError] = useState("");
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [formMode, setFormMode] = useState<"add" | "edit">("add");
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
+  const [editingNoteSlug, setEditingNoteSlug] = useState<string | null>(null);
+  const [deleteNoteSlug, setDeleteNoteSlug] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [form, setForm] = useState<NoteFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-  const projectOptions = form.client
-    ? projects.filter((project) => project.clientName === form.client)
-    : [];
+  useEffect(() => {
+    let cancelled = false;
 
-  const sortedNotes = useMemo(
-    () =>
-      [...notes].sort((a, b) => {
-        if (a.pinned !== b.pinned) {
-          return a.pinned ? -1 : 1;
+    listNotes()
+      .then((rows) => {
+        if (cancelled) {
+          return;
         }
 
-        return 0;
-      }),
-    [notes],
-  );
+        setNotes(rows);
+        setNotesError("");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
 
-  const noteToDelete = deleteNoteId
-    ? notes.find((note) => note.id === deleteNoteId)
+        setNotes([]);
+        setNotesError(toFormErrorMessage(error));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingNotes(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const projectOptions = form.clientId
+    ? getProjectsByClientId(form.clientId)
+    : [];
+
+  const sortedNotes = useMemo(() => sortNotes(notes), [notes]);
+
+  const noteToDelete = deleteNoteSlug
+    ? notes.find((note) => note.slug === deleteNoteSlug)
     : undefined;
 
   useEffect(() => {
@@ -211,25 +218,32 @@ export default function NotesPage() {
 
   function openAddModal() {
     setFormMode("add");
-    setEditingNoteId(null);
+    setEditingNoteSlug(null);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
     setIsFormModalOpen(true);
   }
 
-  function openEditModal(note: Note) {
+  function openEditModal(note: NoteDTO) {
     setFormMode("edit");
-    setEditingNoteId(note.id);
+    setEditingNoteSlug(note.slug);
     setForm(noteToFormData(note));
     setErrors({});
+    setFormError("");
     setIsFormModalOpen(true);
   }
 
   function closeFormModal() {
+    if (isSaving) {
+      return;
+    }
+
     setIsFormModalOpen(false);
-    setEditingNoteId(null);
+    setEditingNoteSlug(null);
     setForm(emptyForm);
     setErrors({});
+    setFormError("");
   }
 
   function closeDeleteModal() {
@@ -237,66 +251,88 @@ export default function NotesPage() {
       return;
     }
 
-    setDeleteNoteId(null);
+    setDeleteNoteSlug(null);
+    setDeleteError("");
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSaving) {
+      return;
+    }
 
     const validationErrors = validateForm(form);
     setErrors(validationErrors);
+    setFormError("");
 
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
-    if (formMode === "add") {
-      const newNote: Note = {
-        id: `note-${Date.now()}`,
-        title: form.title.trim(),
-        content: form.content.trim(),
-        client: form.client,
-        project: form.project,
-        author: "Mari",
-        createdDate: formatCreatedDate(new Date()),
-        category: form.category as NoteCategory,
-        pinned: form.pinned,
-      };
+    setIsSaving(true);
 
-      setNotes((currentNotes) => [...currentNotes, newNote]);
-    } else if (editingNoteId) {
-      setNotes((currentNotes) =>
-        currentNotes.map((note) =>
-          note.id === editingNoteId
-            ? {
-                ...note,
-                title: form.title.trim(),
-                content: form.content.trim(),
-                client: form.client,
-                project: form.project,
-                category: form.category as NoteCategory,
-                pinned: form.pinned,
-              }
-            : note,
-        ),
-      );
+    try {
+      if (formMode === "add") {
+        const created = await createNote({
+          title: form.title.trim(),
+          content: form.content.trim(),
+          projectId: form.projectId,
+          category: form.category as NoteCategory,
+          pinned: form.pinned,
+        });
+
+        setNotes((currentNotes) => sortNotes([...currentNotes, created]));
+      } else if (editingNoteSlug) {
+        const updated = await updateNote(editingNoteSlug, {
+          title: form.title.trim(),
+          content: form.content.trim(),
+          projectId: form.projectId,
+          category: form.category as NoteCategory,
+          pinned: form.pinned,
+        });
+
+        setNotes((currentNotes) =>
+          sortNotes(
+            currentNotes.map((note) =>
+              note.slug === editingNoteSlug ? updated : note,
+            ),
+          ),
+        );
+      }
+
+      setIsFormModalOpen(false);
+      setEditingNoteSlug(null);
+      setForm(emptyForm);
+      setErrors({});
+      setFormError("");
+    } catch (error) {
+      setFormError(toFormErrorMessage(error));
+    } finally {
+      setIsSaving(false);
     }
-
-    closeFormModal();
   }
 
-  function handleConfirmDelete() {
-    if (!deleteNoteId || isDeleting) {
+  async function handleConfirmDelete() {
+    if (!deleteNoteSlug || isDeleting) {
       return;
     }
 
     setIsDeleting(true);
-    setNotes((currentNotes) =>
-      currentNotes.filter((note) => note.id !== deleteNoteId),
-    );
-    setDeleteNoteId(null);
-    setIsDeleting(false);
-    setShowSuccessBanner(true);
+    setDeleteError("");
+
+    try {
+      await deleteNote(deleteNoteSlug);
+      setNotes((currentNotes) =>
+        currentNotes.filter((note) => note.slug !== deleteNoteSlug),
+      );
+      setDeleteNoteSlug(null);
+      setShowSuccessBanner(true);
+    } catch (error) {
+      setDeleteError(toFormErrorMessage(error));
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   return (
@@ -310,7 +346,7 @@ export default function NotesPage() {
             </p>
           </div>
 
-          {canMutateLocal && (
+          {canCreateNote && (
             <button
               type="button"
               className={styles.addButton}
@@ -327,47 +363,59 @@ export default function NotesPage() {
           </div>
         )}
 
+        {notesError ? (
+          <p className={styles.loadError} role="alert">
+            {notesError}
+          </p>
+        ) : null}
+
         <div className={styles.cardGrid}>
-          {sortedNotes.map((note) => (
-            <article key={note.id} className={styles.noteCard}>
-              <div className={styles.noteCardHeader}>
-                <h2 className={styles.noteTitle}>{note.title}</h2>
-                {note.pinned && (
-                  <span className={styles.pinIndicator}>Pinned</span>
-                )}
-              </div>
-
-              <p className={styles.noteContent}>{note.content}</p>
-
-              <div className={styles.noteMeta}>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Client</span>
-                  <span className={styles.metaValue}>{note.client}</span>
+          {isLoadingNotes ? (
+            <p className={styles.emptyState}>Loading notes…</p>
+          ) : notesError ? null : sortedNotes.length === 0 ? (
+            <p className={styles.emptyState}>No notes yet.</p>
+          ) : (
+            sortedNotes.map((note) => (
+              <article key={note.slug} className={styles.noteCard}>
+                <div className={styles.noteCardHeader}>
+                  <h2 className={styles.noteTitle}>{note.title}</h2>
+                  {note.pinned && (
+                    <span className={styles.pinIndicator}>Pinned</span>
+                  )}
                 </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Project</span>
-                  <span className={styles.metaValue}>{note.project}</span>
-                </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Author</span>
-                  <span className={styles.metaValue}>{note.author}</span>
-                </div>
-                <div className={styles.metaItem}>
-                  <span className={styles.metaLabel}>Created</span>
-                  <span className={styles.metaValue}>{note.createdDate}</span>
-                </div>
-              </div>
 
-              <div className={styles.noteFooter}>
-                <span
-                  className={`${styles.badge} ${categoryBadgeClass[note.category]}`}
-                >
-                  {note.category}
-                </span>
+                <p className={styles.noteContent}>{note.content}</p>
 
-                <div className={styles.cardActions}>
-                  {canMutateLocal && (
-                    <>
+                <div className={styles.noteMeta}>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Client</span>
+                    <span className={styles.metaValue}>{note.clientName}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Project</span>
+                    <span className={styles.metaValue}>{note.projectName}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Author</span>
+                    <span className={styles.metaValue}>{note.author}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Created</span>
+                    <span className={styles.metaValue}>
+                      {formatCreatedDate(note.createdAt)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={styles.noteFooter}>
+                  <span
+                    className={`${styles.badge} ${categoryBadgeClass[note.category]}`}
+                  >
+                    {note.category}
+                  </span>
+
+                  <div className={styles.cardActions}>
+                    {canUpdateNote && (
                       <button
                         type="button"
                         className={styles.actionButton}
@@ -375,19 +423,24 @@ export default function NotesPage() {
                       >
                         Edit
                       </button>
+                    )}
+                    {canDeleteNote && (
                       <button
                         type="button"
                         className={`${styles.actionButton} ${styles.deleteButton}`}
-                        onClick={() => setDeleteNoteId(note.id)}
+                        onClick={() => {
+                          setDeleteError("");
+                          setDeleteNoteSlug(note.slug);
+                        }}
                       >
                         Delete
                       </button>
-                    </>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            ))
+          )}
         </div>
       </main>
 
@@ -404,6 +457,12 @@ export default function NotesPage() {
             </h2>
 
             <form className={styles.form} onSubmit={handleSubmit}>
+              {formError ? (
+                <p className={styles.error} role="alert">
+                  {formError}
+                </p>
+              ) : null}
+
               <div className={styles.field}>
                 <label htmlFor="note-title" className={styles.label}>
                   Title *
@@ -419,6 +478,7 @@ export default function NotesPage() {
                       title: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.title)}
                   aria-describedby={
                     errors.title ? "note-title-error" : undefined
@@ -438,29 +498,30 @@ export default function NotesPage() {
                 <select
                   id="note-client"
                   className={styles.select}
-                  value={form.client}
+                  value={form.clientId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      client: event.target.value,
-                      project: "",
+                      clientId: event.target.value,
+                      projectId: "",
                     }))
                   }
-                  aria-invalid={Boolean(errors.client)}
+                  disabled={isSaving}
+                  aria-invalid={Boolean(errors.clientId)}
                   aria-describedby={
-                    errors.client ? "note-client-error" : undefined
+                    errors.clientId ? "note-client-error" : undefined
                   }
                 >
                   <option value="">Select a client</option>
                   {clients.map((client) => (
-                    <option key={client.slug} value={client.name}>
+                    <option key={client.id} value={client.id}>
                       {client.name}
                     </option>
                   ))}
                 </select>
-                {errors.client && (
+                {errors.clientId && (
                   <p id="note-client-error" className={styles.error}>
-                    {errors.client}
+                    {errors.clientId}
                   </p>
                 )}
               </div>
@@ -472,33 +533,33 @@ export default function NotesPage() {
                 <select
                   id="note-project"
                   className={styles.select}
-                  value={form.project}
+                  value={form.projectId}
                   onChange={(event) =>
                     setForm((currentForm) => ({
                       ...currentForm,
-                      project: event.target.value,
+                      projectId: event.target.value,
                     }))
                   }
-                  disabled={!form.client}
-                  aria-invalid={Boolean(errors.project)}
+                  disabled={!form.clientId || isSaving}
+                  aria-invalid={Boolean(errors.projectId)}
                   aria-describedby={
-                    errors.project ? "note-project-error" : undefined
+                    errors.projectId ? "note-project-error" : undefined
                   }
                 >
                   <option value="">
-                    {form.client
+                    {form.clientId
                       ? "Select a project"
                       : "Select a client first"}
                   </option>
                   {projectOptions.map((project) => (
-                    <option key={project.slug} value={project.name}>
+                    <option key={project.id} value={project.id}>
                       {project.name}
                     </option>
                   ))}
                 </select>
-                {errors.project && (
+                {errors.projectId && (
                   <p id="note-project-error" className={styles.error}>
-                    {errors.project}
+                    {errors.projectId}
                   </p>
                 )}
               </div>
@@ -517,6 +578,7 @@ export default function NotesPage() {
                       category: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.category)}
                   aria-describedby={
                     errors.category ? "note-category-error" : undefined
@@ -550,6 +612,7 @@ export default function NotesPage() {
                       content: event.target.value,
                     }))
                   }
+                  disabled={isSaving}
                   aria-invalid={Boolean(errors.content)}
                   aria-describedby={
                     errors.content ? "note-content-error" : undefined
@@ -574,6 +637,7 @@ export default function NotesPage() {
                       pinned: event.target.checked,
                     }))
                   }
+                  disabled={isSaving}
                 />
                 <label htmlFor="note-pinned" className={styles.checkboxLabel}>
                   Pinned
@@ -585,11 +649,21 @@ export default function NotesPage() {
                   type="button"
                   className={styles.cancelButton}
                   onClick={closeFormModal}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
-                <button type="submit" className={styles.submitButton}>
-                  {formMode === "add" ? "Add Note" : "Save Changes"}
+                <button
+                  type="submit"
+                  className={styles.submitButton}
+                  disabled={isSaving}
+                  aria-busy={isSaving}
+                >
+                  {isSaving
+                    ? "Saving…"
+                    : formMode === "add"
+                      ? "Add Note"
+                      : "Save Changes"}
                 </button>
               </div>
             </form>
@@ -597,7 +671,7 @@ export default function NotesPage() {
         </div>
       )}
 
-      {deleteNoteId && noteToDelete && (
+      {deleteNoteSlug && noteToDelete && (
         <div className={styles.backdrop}>
           <div
             role="dialog"
@@ -615,6 +689,12 @@ export default function NotesPage() {
               This action cannot be undone.
             </p>
 
+            {deleteError ? (
+              <p className={styles.error} role="alert">
+                {deleteError}
+              </p>
+            ) : null}
+
             <div className={styles.modalActions}>
               <button
                 type="button"
@@ -629,14 +709,14 @@ export default function NotesPage() {
                 className={styles.deleteConfirmButton}
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
+                aria-busy={isDeleting}
               >
-                Delete Note
+                {isDeleting ? "Deleting…" : "Delete Note"}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </>
   );
 }

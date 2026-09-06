@@ -22,6 +22,12 @@ export type SeedTaskStatus =
   | "Blocked"
   | "Done";
 export type SeedTaskAssignee = "Mari" | "Chris" | "Alex";
+export type SeedNoteCategory =
+  | "Testing"
+  | "Automation"
+  | "Investigation"
+  | "Bug"
+  | "General";
 
 export type SeedClient = {
   slug: string;
@@ -62,6 +68,17 @@ export type SeedTask = {
   status: SeedTaskStatus;
 };
 
+export type SeedNote = {
+  slug: string;
+  title: string;
+  content: string;
+  /** Owning project slug — resolved to project_id at seed time. */
+  projectSlug: string;
+  category: SeedNoteCategory;
+  pinned: boolean;
+  author: string;
+};
+
 /** Fixed ids keep seeded rows addressable from future API/Playwright fixtures. */
 export const SEED_CLIENT_IDS: Record<string, string> = {
   pax8: "11111111-1111-4111-8111-111111111111",
@@ -93,6 +110,13 @@ export const SEED_TASK_IDS: Record<string, string> = {
   "update-playwright-tests": "30303030-3030-4030-8030-303030303030",
   "investigate-login-bug": "40404040-4040-4040-8040-404040404040",
   "validate-api-regression": "50505050-5050-4050-8050-505050505050",
+};
+
+export const SEED_NOTE_IDS: Record<string, string> = {
+  "regression-testing-notes": "60606060-6060-4606-8606-606060606060",
+  "api-investigation": "70707070-7070-4707-8707-707070707070",
+  "orangehrm-automation-notes": "80808080-8080-4808-8808-808080808080",
+  "login-bug-findings": "90909090-9090-4909-8909-909090909090",
 };
 
 /**
@@ -300,6 +324,49 @@ export const seedTasks: SeedTask[] = [
   },
 ];
 
+export const seedNotes: SeedNote[] = [
+  {
+    slug: "regression-testing-notes",
+    title: "Regression Testing Notes",
+    content:
+      "Regression coverage should include client creation, updates, and portal access flows.",
+    projectSlug: "account-management",
+    category: "Testing",
+    pinned: true,
+    author: "Mari",
+  },
+  {
+    slug: "api-investigation",
+    title: "API Investigation",
+    content:
+      "Validate error responses and authentication behavior before adding additional automation coverage.",
+    projectSlug: "public-api",
+    category: "Investigation",
+    pinned: false,
+    author: "Mari",
+  },
+  {
+    slug: "orangehrm-automation-notes",
+    title: "OrangeHRM Automation",
+    content:
+      "Prioritize employee management and login flows for Playwright coverage.",
+    projectSlug: "orangehrm-automation",
+    category: "Automation",
+    pinned: false,
+    author: "Mari",
+  },
+  {
+    slug: "login-bug-findings",
+    title: "Login Bug Findings",
+    content:
+      "Login issue appears intermittently when the session has expired.",
+    projectSlug: "lemonade-web",
+    category: "Bug",
+    pinned: false,
+    author: "Alex",
+  },
+];
+
 export function seedClientId(slug: string): string {
   const id = SEED_CLIENT_IDS[slug];
 
@@ -342,6 +409,18 @@ export function seedTaskId(slug: string): string {
   if (!id) {
     throw new Error(
       `Seed task "${slug}" has no fixed id. Add it to SEED_TASK_IDS to keep the seed deterministic.`,
+    );
+  }
+
+  return id;
+}
+
+export function seedNoteId(slug: string): string {
+  const id = SEED_NOTE_IDS[slug];
+
+  if (!id) {
+    throw new Error(
+      `Seed note "${slug}" has no fixed id. Add it to SEED_NOTE_IDS to keep the seed deterministic.`,
     );
   }
 

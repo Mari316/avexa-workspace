@@ -20,7 +20,11 @@ export type Permission =
   | "tasks:read"
   | "tasks:create"
   | "tasks:update"
-  | "tasks:delete";
+  | "tasks:delete"
+  | "notes:read"
+  | "notes:create"
+  | "notes:update"
+  | "notes:delete";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   admin: [
@@ -37,6 +41,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "tasks:create",
     "tasks:update",
     "tasks:delete",
+    "notes:read",
+    "notes:create",
+    "notes:update",
+    "notes:delete",
   ],
   qa_engineer: [
     "clients:read",
@@ -48,8 +56,18 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "tasks:create",
     "tasks:update",
     "tasks:delete",
+    "notes:read",
+    "notes:create",
+    "notes:update",
+    "notes:delete",
   ],
-  viewer: ["clients:read", "contacts:read", "projects:read", "tasks:read"],
+  viewer: [
+    "clients:read",
+    "contacts:read",
+    "projects:read",
+    "tasks:read",
+    "notes:read",
+  ],
 };
 
 export function isRole(value: unknown): value is Role {

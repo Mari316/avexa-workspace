@@ -13,6 +13,7 @@ import { applyTestDatabaseEnv } from "./load-test-env";
 
 /** Application + Better Auth data tables. Migration journal is intentionally omitted. */
 const TRUNCATE_TABLES = [
+  "notes",
   "tasks",
   "projects",
   "contacts",
@@ -52,6 +53,7 @@ export async function resetTestDatabase(): Promise<void> {
     seedClientsTable,
     seedContactsTable,
     seedPrimaryContacts,
+    seedNotesTable,
     seedProjectsTable,
     seedTasksTable,
   } = await import("../../seed/seed");
@@ -61,6 +63,7 @@ export async function resetTestDatabase(): Promise<void> {
     await seedContactsTable();
     await seedPrimaryContacts();
     await seedProjectsTable();
+    await seedNotesTable();
     await seedTasksTable();
     await seedAuthUsers();
 
@@ -76,6 +79,9 @@ export async function resetTestDatabase(): Promise<void> {
     const [tasks] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(schema.tasks);
+    const [notes] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.notes);
     const [users] = await db
       .select({ total: sql<number>`count(*)::int` })
       .from(schema.user);
@@ -86,7 +92,8 @@ export async function resetTestDatabase(): Promise<void> {
     console.log(
       `Test DB reset+seed complete. clients=${clients?.total ?? 0}, ` +
         `contacts=${contacts?.total ?? 0}, projects=${projects?.total ?? 0}, ` +
-        `tasks=${tasks?.total ?? 0}, users=${users?.total ?? 0}.`,
+        `tasks=${tasks?.total ?? 0}, notes=${notes?.total ?? 0}, ` +
+        `users=${users?.total ?? 0}.`,
     );
     console.log(
       `Roles: ${roles.map((row) => `${row.email}=${row.role}`).join(", ")}`,
