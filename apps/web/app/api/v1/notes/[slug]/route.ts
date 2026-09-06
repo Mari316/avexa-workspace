@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { changedFieldsMetadata } from "../../../../../server/audit/audit.dto";
+import { recordAuditEvent } from "../../../../../server/audit/audit.service";
 import { toNoteDTO } from "../../../../../server/notes/note.dto";
 import {
   noteSlugParamSchema,
@@ -15,7 +17,7 @@ import {
   ForbiddenError,
   requirePermission,
 } from "../../../../../server/auth/require-permission";
-import { UnauthorizedError } from "../../../../../server/auth/require-user";
+import { UnauthorizedError, type SafeUser } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
   forbiddenResponse,
@@ -73,8 +75,10 @@ export async function PATCH(
     return noteNotFound();
   }
 
+  let user: SafeUser;
+
   try {
-    await requirePermission("notes:update");
+    user = await requirePermission("notes:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
@@ -104,7 +108,23 @@ export async function PATCH(
   try {
     const row = await updateNoteBySlug(slug, parsed.data);
 
-    return row ? NextResponse.json({ data: toNoteDTO(row) }) : noteNotFound();
+    if (!row) {
+      return noteNotFound();
+    }
+
+    await recordAuditEvent({
+      eventType: "NOTE_UPDATED",
+      entityType: "note",
+      action: "updated",
+      entityId: row.id,
+      entitySlug: row.slug,
+      entityLabel: row.title,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: changedFieldsMetadata(parsed.data),
+    });
+
+    return NextResponse.json({ data: toNoteDTO(row) });
   } catch (error) {
     if (error instanceof ProjectNotFoundError) {
       return errorResponse(400, "PROJECT_NOT_FOUND", "The selected project does not exist.");
@@ -125,10 +145,32 @@ export async function DELETE(
   }
 
   try {
-    await requirePermission("notes:delete");
+    const user = await requirePermission("notes:delete");
+    const existing = await getNoteBySlug(slug);
+
+    if (!existing) {
+      return noteNotFound();
+    }
+
     const deleted = await deleteNoteBySlug(slug);
 
-    return deleted ? new NextResponse(null, { status: 204 }) : noteNotFound();
+    if (!deleted) {
+      return noteNotFound();
+    }
+
+    await recordAuditEvent({
+      eventType: "NOTE_DELETED",
+      entityType: "note",
+      action: "deleted",
+      entityId: existing.id,
+      entitySlug: existing.slug,
+      entityLabel: existing.title,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: {},
+    });
+
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();

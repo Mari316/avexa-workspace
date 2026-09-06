@@ -2,7 +2,27 @@ import { Client } from "pg";
 
 import { assertTestDatabase } from "./assert-test-database.js";
 
+export const CLEANUP_AUDIT_ENTITY_TYPES = [
+  "client",
+  "contact",
+  "project",
+  "task",
+  "note",
+] as const;
+
+export type CleanupAuditEntityType = (typeof CLEANUP_AUDIT_ENTITY_TYPES)[number];
+
+export type CleanupAuditEntity = {
+  entityType: CleanupAuditEntityType;
+  entitySlug: string;
+};
+
 export type CleanupTestDataInput = {
+  /**
+   * Audit rows to remove by the (entity_type, entity_slug) pair only.
+   * Never match on slug alone.
+   */
+  auditEntities?: CleanupAuditEntity[];
   /** Exact client UUIDs to remove (with dependent graph). */
   clientIds?: string[];
   /** Exact client slugs to remove (with dependent graph). */
@@ -189,6 +209,23 @@ export async function cleanupTestData(
       await client.query(`DELETE FROM clients WHERE id = ANY($1::uuid[])`, [
         [...clientIds],
       ]);
+    }
+
+    if (input.auditEntities?.length) {
+      const allowed = new Set<string>(CLEANUP_AUDIT_ENTITY_TYPES);
+
+      for (const entity of input.auditEntities) {
+        if (!allowed.has(entity.entityType) || !entity.entitySlug) {
+          continue;
+        }
+
+        await client.query(
+          `DELETE FROM audit_events
+           WHERE entity_type = $1
+             AND entity_slug = $2`,
+          [entity.entityType, entity.entitySlug],
+        );
+      }
     }
   });
 }

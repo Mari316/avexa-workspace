@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { changedFieldsMetadata } from "../../../../../server/audit/audit.dto";
+import { recordAuditEvent } from "../../../../../server/audit/audit.service";
 import { toClientDTO } from "../../../../../server/clients/client.dto";
 import {
   clientSlugParamSchema,
@@ -15,7 +17,7 @@ import {
   ForbiddenError,
   requirePermission,
 } from "../../../../../server/auth/require-permission";
-import { UnauthorizedError } from "../../../../../server/auth/require-user";
+import { UnauthorizedError, type SafeUser } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
   forbiddenResponse,
@@ -68,8 +70,10 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
     return clientNotFound();
   }
 
+  let user: SafeUser;
+
   try {
-    await requirePermission("clients:update");
+    user = await requirePermission("clients:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
@@ -99,7 +103,23 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Ne
   try {
     const row = await updateClientBySlug(slug, parsed.data);
 
-    return row ? NextResponse.json({ data: toClientDTO(row) }) : clientNotFound();
+    if (!row) {
+      return clientNotFound();
+    }
+
+    await recordAuditEvent({
+      eventType: "CLIENT_UPDATED",
+      entityType: "client",
+      action: "updated",
+      entityId: row.id,
+      entitySlug: row.slug,
+      entityLabel: row.name,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: changedFieldsMetadata(parsed.data),
+    });
+
+    return NextResponse.json({ data: toClientDTO(row) });
   } catch (error) {
     if (error instanceof PrimaryContactNotFoundError) {
       return errorResponse(

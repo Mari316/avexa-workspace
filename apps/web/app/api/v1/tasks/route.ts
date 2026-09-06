@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { recordAuditEvent } from "../../../../server/audit/audit.service";
 import { toTaskDTO } from "../../../../server/tasks/task.dto";
 import { createTaskSchema } from "../../../../server/tasks/task.schema";
 import {
@@ -13,7 +14,7 @@ import {
   ForbiddenError,
   requirePermission,
 } from "../../../../server/auth/require-permission";
-import { UnauthorizedError } from "../../../../server/auth/require-user";
+import { UnauthorizedError, type SafeUser } from "../../../../server/auth/require-user";
 import {
   errorResponse,
   forbiddenResponse,
@@ -45,8 +46,10 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
+  let user: SafeUser;
+
   try {
-    await requirePermission("tasks:create");
+    user = await requirePermission("tasks:create");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
@@ -75,6 +78,18 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   try {
     const row = await createTask(parsed.data);
+
+    await recordAuditEvent({
+      eventType: "TASK_CREATED",
+      entityType: "task",
+      action: "created",
+      entityId: row.id,
+      entitySlug: row.slug,
+      entityLabel: row.title,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: {},
+    });
 
     return NextResponse.json(
       { data: toTaskDTO(row) },

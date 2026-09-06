@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { changedFieldsMetadata } from "../../../../../server/audit/audit.dto";
+import { recordAuditEvent } from "../../../../../server/audit/audit.service";
 import { toProjectDTO } from "../../../../../server/projects/project.dto";
 import {
   projectSlugParamSchema,
@@ -14,7 +16,7 @@ import {
   ForbiddenError,
   requirePermission,
 } from "../../../../../server/auth/require-permission";
-import { UnauthorizedError } from "../../../../../server/auth/require-user";
+import { UnauthorizedError, type SafeUser } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
   forbiddenResponse,
@@ -72,8 +74,10 @@ export async function PATCH(
     return projectNotFound();
   }
 
+  let user: SafeUser;
+
   try {
-    await requirePermission("projects:update");
+    user = await requirePermission("projects:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
@@ -103,7 +107,23 @@ export async function PATCH(
   try {
     const row = await updateProjectBySlug(slug, parsed.data);
 
-    return row ? NextResponse.json({ data: toProjectDTO(row) }) : projectNotFound();
+    if (!row) {
+      return projectNotFound();
+    }
+
+    await recordAuditEvent({
+      eventType: "PROJECT_UPDATED",
+      entityType: "project",
+      action: "updated",
+      entityId: row.id,
+      entitySlug: row.slug,
+      entityLabel: row.name,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: changedFieldsMetadata(parsed.data),
+    });
+
+    return NextResponse.json({ data: toProjectDTO(row) });
   } catch (error) {
     if (error instanceof ClientNotFoundError) {
       return errorResponse(400, "CLIENT_NOT_FOUND", "The selected client does not exist.");

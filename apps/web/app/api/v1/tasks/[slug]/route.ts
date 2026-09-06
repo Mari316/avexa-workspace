@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { changedFieldsMetadata } from "../../../../../server/audit/audit.dto";
+import { recordAuditEvent } from "../../../../../server/audit/audit.service";
 import { toTaskDTO } from "../../../../../server/tasks/task.dto";
 import {
   taskSlugParamSchema,
@@ -15,7 +17,7 @@ import {
   ForbiddenError,
   requirePermission,
 } from "../../../../../server/auth/require-permission";
-import { UnauthorizedError } from "../../../../../server/auth/require-user";
+import { UnauthorizedError, type SafeUser } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
   forbiddenResponse,
@@ -73,8 +75,10 @@ export async function PATCH(
     return taskNotFound();
   }
 
+  let user: SafeUser;
+
   try {
-    await requirePermission("tasks:update");
+    user = await requirePermission("tasks:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
@@ -104,7 +108,23 @@ export async function PATCH(
   try {
     const row = await updateTaskBySlug(slug, parsed.data);
 
-    return row ? NextResponse.json({ data: toTaskDTO(row) }) : taskNotFound();
+    if (!row) {
+      return taskNotFound();
+    }
+
+    await recordAuditEvent({
+      eventType: "TASK_UPDATED",
+      entityType: "task",
+      action: "updated",
+      entityId: row.id,
+      entitySlug: row.slug,
+      entityLabel: row.title,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: changedFieldsMetadata(parsed.data),
+    });
+
+    return NextResponse.json({ data: toTaskDTO(row) });
   } catch (error) {
     if (error instanceof ProjectNotFoundError) {
       return errorResponse(400, "PROJECT_NOT_FOUND", "The selected project does not exist.");
@@ -125,10 +145,32 @@ export async function DELETE(
   }
 
   try {
-    await requirePermission("tasks:delete");
+    const user = await requirePermission("tasks:delete");
+    const existing = await getTaskBySlug(slug);
+
+    if (!existing) {
+      return taskNotFound();
+    }
+
     const deleted = await deleteTaskBySlug(slug);
 
-    return deleted ? new NextResponse(null, { status: 204 }) : taskNotFound();
+    if (!deleted) {
+      return taskNotFound();
+    }
+
+    await recordAuditEvent({
+      eventType: "TASK_DELETED",
+      entityType: "task",
+      action: "deleted",
+      entityId: existing.id,
+      entitySlug: existing.slug,
+      entityLabel: existing.title,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: {},
+    });
+
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();

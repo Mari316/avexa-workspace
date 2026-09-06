@@ -9,6 +9,7 @@ export type Role = (typeof ROLES)[number];
 
 export type Permission =
   | "dashboard:read"
+  | "audit:read"
   | "clients:read"
   | "clients:create"
   | "clients:update"
@@ -30,6 +31,7 @@ export type Permission =
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   admin: [
     "dashboard:read",
+    "audit:read",
     "clients:read",
     "clients:create",
     "clients:update",
@@ -50,6 +52,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ],
   qa_engineer: [
     "dashboard:read",
+    "audit:read",
     "clients:read",
     "contacts:read",
     "projects:read",
@@ -66,6 +69,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ],
   viewer: [
     "dashboard:read",
+    "audit:read",
     "clients:read",
     "contacts:read",
     "projects:read",

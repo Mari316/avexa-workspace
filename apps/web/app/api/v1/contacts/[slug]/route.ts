@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { changedFieldsMetadata } from "../../../../../server/audit/audit.dto";
+import { recordAuditEvent } from "../../../../../server/audit/audit.service";
 import { toContactDTO } from "../../../../../server/contacts/contact.dto";
 import {
   contactSlugParamSchema,
@@ -15,7 +17,7 @@ import {
   ForbiddenError,
   requirePermission,
 } from "../../../../../server/auth/require-permission";
-import { UnauthorizedError } from "../../../../../server/auth/require-user";
+import { UnauthorizedError, type SafeUser } from "../../../../../server/auth/require-user";
 import {
   errorResponse,
   forbiddenResponse,
@@ -74,8 +76,10 @@ export async function PATCH(
     return contactNotFound();
   }
 
+  let user: SafeUser;
+
   try {
-    await requirePermission("contacts:update");
+    user = await requirePermission("contacts:update");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
@@ -105,7 +109,23 @@ export async function PATCH(
   try {
     const row = await updateContactBySlug(slug, parsed.data);
 
-    return row ? NextResponse.json({ data: toContactDTO(row) }) : contactNotFound();
+    if (!row) {
+      return contactNotFound();
+    }
+
+    await recordAuditEvent({
+      eventType: "CONTACT_UPDATED",
+      entityType: "contact",
+      action: "updated",
+      entityId: row.id,
+      entitySlug: row.slug,
+      entityLabel: `${row.firstName} ${row.lastName}`,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: changedFieldsMetadata(parsed.data),
+    });
+
+    return NextResponse.json({ data: toContactDTO(row) });
   } catch (error) {
     if (error instanceof ClientNotFoundError) {
       return errorResponse(400, "CLIENT_NOT_FOUND", "The selected client does not exist.");

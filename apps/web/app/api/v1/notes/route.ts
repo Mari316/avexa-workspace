@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { recordAuditEvent } from "../../../../server/audit/audit.service";
 import { toNoteDTO } from "../../../../server/notes/note.dto";
 import { createNoteSchema } from "../../../../server/notes/note.schema";
 import {
@@ -12,7 +13,7 @@ import {
   ForbiddenError,
   requirePermission,
 } from "../../../../server/auth/require-permission";
-import { UnauthorizedError } from "../../../../server/auth/require-user";
+import { UnauthorizedError, type SafeUser } from "../../../../server/auth/require-user";
 import {
   errorResponse,
   forbiddenResponse,
@@ -44,11 +45,10 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
-  let author: string;
+  let user: SafeUser;
 
   try {
-    const user = await requirePermission("notes:create");
-    author = user.name;
+    user = await requirePermission("notes:create");
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return unauthorizedResponse();
@@ -76,7 +76,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const row = await createNote(parsed.data, author);
+    const row = await createNote(parsed.data, user.name);
+
+    await recordAuditEvent({
+      eventType: "NOTE_CREATED",
+      entityType: "note",
+      action: "created",
+      entityId: row.id,
+      entitySlug: row.slug,
+      entityLabel: row.title,
+      actorUserId: user.id,
+      actorName: user.name,
+      metadata: {},
+    });
 
     return NextResponse.json(
       { data: toNoteDTO(row) },
