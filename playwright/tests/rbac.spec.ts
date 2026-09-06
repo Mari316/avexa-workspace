@@ -5,6 +5,10 @@ import {
   readCreatedClient,
 } from "../api/clients.api.js";
 import {
+  ContactsApi,
+  readCreatedContact,
+} from "../api/contacts.api.js";
+import {
   ProjectsApi,
   readCreatedProject,
 } from "../api/projects.api.js";
@@ -14,6 +18,7 @@ import {
   TasksApi,
 } from "../api/tasks.api.js";
 import { buildClient } from "../data/client.factory.js";
+import { buildContact } from "../data/contact.factory.js";
 import { buildProject } from "../data/project.factory.js";
 import { buildTask } from "../data/task.factory.js";
 import { cleanupTestData } from "../support/db/cleanup.js";
@@ -159,6 +164,56 @@ test.describe("Admin (Mari)", () => {
     expect(error.code).toBe("VALIDATION_ERROR");
     expect(error.details?.some((detail) => detail.path === "name")).toBe(true);
   });
+
+  test("can create and update a contact", async ({ request }) => {
+    const clientsApi = new ClientsApi(request);
+    const contactsApi = new ContactsApi(request);
+    let clientSlug: string | undefined;
+
+    try {
+      const createClientResponse = await clientsApi.createClient(buildClient());
+      expect(createClientResponse.status()).toBe(201);
+      const client = await readCreatedClient(createClientResponse);
+      clientSlug = client.slug;
+
+      const contactPayload = buildContact({ clientId: client.id });
+      const createContactResponse = await contactsApi.createContact(contactPayload);
+      expect(createContactResponse.status()).toBe(201);
+
+      const created = await readCreatedContact(createContactResponse);
+      expect(created.email).toBe(contactPayload.email);
+      expect(created.clientId).toBe(client.id);
+
+      const updateResponse = await contactsApi.updateContact(created.slug, {
+        role: "Lead Tester",
+      });
+      expect(updateResponse.status()).toBe(200);
+
+      const getResponse = await contactsApi.getContact(created.slug);
+      expect(getResponse.status()).toBe(200);
+      const fetched = await readCreatedContact(getResponse);
+      expect(fetched.role).toBe("Lead Tester");
+    } finally {
+      if (clientSlug) {
+        await cleanupTestData({ clientSlugs: [clientSlug] });
+      }
+    }
+  });
+
+  test("rejects a contact with an invalid email", async ({ request }) => {
+    const contactsApi = new ContactsApi(request);
+    const contactPayload = buildContact({
+      clientId: SEED_CLIENT_ID,
+      email: "not-an-email",
+    });
+
+    const createResponse = await contactsApi.createContact(contactPayload);
+    expect(createResponse.status()).toBe(400);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.details?.some((detail) => detail.path === "email")).toBe(true);
+  });
 });
 
 test.describe("QA Engineer (Chris)", () => {
@@ -188,22 +243,18 @@ test.describe("QA Engineer (Chris)", () => {
     const list = await request.get("/api/v1/contacts");
     expect(list.status()).toBe(200);
 
-    const create = await request.post("/api/v1/contacts", {
-      data: {
-        firstName: "QA",
-        lastName: `Forbidden ${Date.now()}`,
-        clientId: "11111111-1111-4111-8111-111111111111",
-        email: "qa.forbidden@example.test",
-        role: "Tester",
-        status: "Active",
-      },
-    });
-    expect(create.status()).toBe(403);
+    const contactsApi = new ContactsApi(request);
+    const createResponse = await contactsApi.createContact(
+      buildContact({ clientId: SEED_CLIENT_ID }),
+    );
+    expect(createResponse.status()).toBe(403);
+    const createError = await readApiError(createResponse);
+    expect(createError.code).toBe("FORBIDDEN");
 
-    const patch = await request.patch("/api/v1/contacts/mitchell-lubbers", {
-      data: { role: "Should Not Update" },
+    const patchResponse = await contactsApi.updateContact("mitchell-lubbers", {
+      role: "Should Not Update",
     });
-    expect(patch.status()).toBe(403);
+    expect(patchResponse.status()).toBe(403);
   });
 
   test("can create and delete a task", async ({ request }) => {
@@ -334,6 +385,28 @@ test.describe("Viewer (Alex)", () => {
     expect(error.code).toBe("FORBIDDEN");
   });
 
+  test("cannot create a contact", async ({ request }) => {
+    const contactsApi = new ContactsApi(request);
+    const createResponse = await contactsApi.createContact(
+      buildContact({ clientId: SEED_CLIENT_ID }),
+    );
+    expect(createResponse.status()).toBe(403);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("FORBIDDEN");
+  });
+
+  test("cannot update a contact", async ({ request }) => {
+    const contactsApi = new ContactsApi(request);
+    const updateResponse = await contactsApi.updateContact("mitchell-lubbers", {
+      role: "Should Not Update",
+    });
+    expect(updateResponse.status()).toBe(403);
+
+    const error = await readApiError(updateResponse);
+    expect(error.code).toBe("FORBIDDEN");
+  });
+
   test("cannot create a task", async ({ request }) => {
     const tasksApi = new TasksApi(request);
     const taskPayload = buildTask({
@@ -414,6 +487,17 @@ test.describe("Anonymous", () => {
     const projectsApi = new ProjectsApi(request);
     const createResponse = await projectsApi.createProject(
       buildProject({ clientId: SEED_CLIENT_ID }),
+    );
+    expect(createResponse.status()).toBe(401);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("UNAUTHORIZED");
+  });
+
+  test("cannot create a contact", async ({ request }) => {
+    const contactsApi = new ContactsApi(request);
+    const createResponse = await contactsApi.createContact(
+      buildContact({ clientId: SEED_CLIENT_ID }),
     );
     expect(createResponse.status()).toBe(401);
 
