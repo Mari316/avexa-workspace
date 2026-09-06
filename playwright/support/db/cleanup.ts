@@ -9,12 +9,15 @@ export type CleanupTestDataInput = {
   clientSlugs?: string[];
   /** Exact client names to remove (with dependent graph). */
   clientNames?: string[];
-  /** Exact project UUIDs (and their tasks). */
+  /** Exact project UUIDs (and their tasks and notes). */
   projectIds?: string[];
   projectSlugs?: string[];
   /** Exact task UUIDs / slugs. */
   taskIds?: string[];
   taskSlugs?: string[];
+  /** Exact note UUIDs / slugs. */
+  noteIds?: string[];
+  noteSlugs?: string[];
   /** Exact contact UUIDs / slugs (clears primary_contact_id first). */
   contactIds?: string[];
   contactSlugs?: string[];
@@ -46,6 +49,7 @@ export async function cleanupTestData(
     const clientIds = new Set(input.clientIds ?? []);
     const projectIds = new Set(input.projectIds ?? []);
     const taskIds = new Set(input.taskIds ?? []);
+    const noteIds = new Set(input.noteIds ?? []);
     const contactIds = new Set(input.contactIds ?? []);
 
     if (input.clientSlugs?.length) {
@@ -88,6 +92,16 @@ export async function cleanupTestData(
       }
     }
 
+    if (input.noteSlugs?.length) {
+      const result = await client.query<{ id: string }>(
+        `SELECT id FROM notes WHERE slug = ANY($1::text[])`,
+        [input.noteSlugs],
+      );
+      for (const row of result.rows) {
+        noteIds.add(row.id);
+      }
+    }
+
     if (input.contactSlugs?.length) {
       const result = await client.query<{ id: string }>(
         `SELECT id FROM contacts WHERE slug = ANY($1::text[])`,
@@ -127,6 +141,20 @@ export async function cleanupTestData(
       for (const row of tasks.rows) {
         taskIds.add(row.id);
       }
+
+      const projectNotes = await client.query<{ id: string }>(
+        `SELECT id FROM notes WHERE project_id = ANY($1::uuid[])`,
+        [projectIdList],
+      );
+      for (const row of projectNotes.rows) {
+        noteIds.add(row.id);
+      }
+    }
+
+    if (noteIds.size > 0) {
+      await client.query(`DELETE FROM notes WHERE id = ANY($1::uuid[])`, [
+        [...noteIds],
+      ]);
     }
 
     if (taskIds.size > 0) {
