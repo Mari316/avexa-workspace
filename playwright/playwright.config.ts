@@ -82,7 +82,6 @@ process.env.BETTER_AUTH_URL = baseURL;
 export default defineConfig({
   testDir: "./tests",
   outputDir: "./test-results",
-  globalSetup: "./global-setup.ts",
   timeout: 30 * 1000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -105,8 +104,19 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "auth-setup",
+      testDir: "./auth",
+      testMatch: /auth\.setup\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: { cookies: [], origins: [] },
+      },
+    },
+    {
       name: "chromium",
+      dependencies: ["auth-setup"],
       use: { ...devices["Desktop Chrome"] },
     },
   ],
 });
+
