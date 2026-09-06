@@ -5,14 +5,20 @@ import {
   readCreatedClient,
 } from "../api/clients.api.js";
 import {
+  ProjectsApi,
+  readCreatedProject,
+} from "../api/projects.api.js";
+import {
   readApiError,
   readCreatedTask,
   TasksApi,
 } from "../api/tasks.api.js";
 import { buildClient } from "../data/client.factory.js";
+import { buildProject } from "../data/project.factory.js";
 import { buildTask } from "../data/task.factory.js";
 import { cleanupTestData } from "../support/db/cleanup.js";
 
+const SEED_CLIENT_ID = "11111111-1111-4111-8111-111111111111";
 const SEED_PROJECT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 test.describe("Admin (Mari)", () => {
@@ -89,6 +95,57 @@ test.describe("Admin (Mari)", () => {
         await cleanupTestData({ clientSlugs: [createdSlug] });
       }
     }
+  });
+
+  test("can create and update a project", async ({ request }) => {
+    const clientsApi = new ClientsApi(request);
+    const projectsApi = new ProjectsApi(request);
+    let clientSlug: string | undefined;
+
+    try {
+      const createClientResponse = await clientsApi.createClient(buildClient());
+      expect(createClientResponse.status()).toBe(201);
+      const client = await readCreatedClient(createClientResponse);
+      clientSlug = client.slug;
+
+      const projectPayload = buildProject({ clientId: client.id });
+      const createProjectResponse = await projectsApi.createProject(projectPayload);
+      expect(createProjectResponse.status()).toBe(201);
+
+      const created = await readCreatedProject(createProjectResponse);
+      expect(created.name).toBe(projectPayload.name);
+      expect(created.clientId).toBe(client.id);
+
+      const nextStatus = created.status === "Active" ? "On Hold" : "Active";
+      const updateResponse = await projectsApi.updateProject(created.slug, {
+        status: nextStatus,
+      });
+      expect(updateResponse.status()).toBe(200);
+
+      const getResponse = await projectsApi.getProject(created.slug);
+      expect(getResponse.status()).toBe(200);
+      const fetched = await readCreatedProject(getResponse);
+      expect(fetched.status).toBe(nextStatus);
+    } finally {
+      if (clientSlug) {
+        await cleanupTestData({ clientSlugs: [clientSlug] });
+      }
+    }
+  });
+
+  test("rejects a project with an empty name", async ({ request }) => {
+    const projectsApi = new ProjectsApi(request);
+    const projectPayload = buildProject({
+      clientId: SEED_CLIENT_ID,
+      name: "",
+    });
+
+    const createResponse = await projectsApi.createProject(projectPayload);
+    expect(createResponse.status()).toBe(400);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.details?.some((detail) => detail.path === "name")).toBe(true);
   });
 
   test("rejects a client with an empty name", async ({ request }) => {
@@ -182,22 +239,34 @@ test.describe("QA Engineer (Chris)", () => {
     }
   });
 
-  test("can update a project", async ({ request }) => {
-    const get = await request.get("/api/v1/projects/account-management");
-    expect(get.status()).toBe(200);
-    const { data } = await get.json();
-    const originalStatus = data.status as string;
-    const nextStatus = originalStatus === "Active" ? "On Hold" : "Active";
+  test("can create and update a project", async ({ request }) => {
+    const projectsApi = new ProjectsApi(request);
+    const projectPayload = buildProject({ clientId: SEED_CLIENT_ID });
+    let projectSlug: string | undefined;
 
-    const patch = await request.patch("/api/v1/projects/account-management", {
-      data: { status: nextStatus },
-    });
-    expect(patch.status()).toBe(200);
+    try {
+      const createResponse = await projectsApi.createProject(projectPayload);
+      expect(createResponse.status()).toBe(201);
 
-    const restore = await request.patch("/api/v1/projects/account-management", {
-      data: { status: originalStatus },
-    });
-    expect(restore.status()).toBe(200);
+      const created = await readCreatedProject(createResponse);
+      expect(created.name).toBe(projectPayload.name);
+      projectSlug = created.slug;
+
+      const nextStatus = created.status === "Active" ? "On Hold" : "Active";
+      const updateResponse = await projectsApi.updateProject(created.slug, {
+        status: nextStatus,
+      });
+      expect(updateResponse.status()).toBe(200);
+
+      const getResponse = await projectsApi.getProject(created.slug);
+      expect(getResponse.status()).toBe(200);
+      const fetched = await readCreatedProject(getResponse);
+      expect(fetched.status).toBe(nextStatus);
+    } finally {
+      if (projectSlug) {
+        await cleanupTestData({ projectSlugs: [projectSlug] });
+      }
+    }
   });
 });
 
@@ -235,6 +304,28 @@ test.describe("Viewer (Alex)", () => {
   test("cannot update a client", async ({ request }) => {
     const clientsApi = new ClientsApi(request);
     const updateResponse = await clientsApi.updateClient("pax8", {
+      status: "On Hold",
+    });
+    expect(updateResponse.status()).toBe(403);
+
+    const error = await readApiError(updateResponse);
+    expect(error.code).toBe("FORBIDDEN");
+  });
+
+  test("cannot create a project", async ({ request }) => {
+    const projectsApi = new ProjectsApi(request);
+    const createResponse = await projectsApi.createProject(
+      buildProject({ clientId: SEED_CLIENT_ID }),
+    );
+    expect(createResponse.status()).toBe(403);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("FORBIDDEN");
+  });
+
+  test("cannot update a project", async ({ request }) => {
+    const projectsApi = new ProjectsApi(request);
+    const updateResponse = await projectsApi.updateProject("account-management", {
       status: "On Hold",
     });
     expect(updateResponse.status()).toBe(403);
@@ -313,6 +404,17 @@ test.describe("Anonymous", () => {
   test("cannot create a client", async ({ request }) => {
     const clientsApi = new ClientsApi(request);
     const createResponse = await clientsApi.createClient(buildClient());
+    expect(createResponse.status()).toBe(401);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("UNAUTHORIZED");
+  });
+
+  test("cannot create a project", async ({ request }) => {
+    const projectsApi = new ProjectsApi(request);
+    const createResponse = await projectsApi.createProject(
+      buildProject({ clientId: SEED_CLIENT_ID }),
+    );
     expect(createResponse.status()).toBe(401);
 
     const error = await readApiError(createResponse);

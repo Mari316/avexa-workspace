@@ -7,6 +7,7 @@ import type {
 } from "../data/client.factory.js";
 
 export type CreatedClient = {
+  id: string;
   slug: string;
   name: string;
   status: ClientStatus;
@@ -39,9 +40,14 @@ export async function readCreatedClient(
     throw new Error("Client response is missing data");
   }
 
+  const id = body.data.id;
   const slug = body.data.slug;
   const name = body.data.name;
   const status = body.data.status;
+
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error("Client response is missing data.id");
+  }
 
   if (typeof slug !== "string" || slug.length === 0) {
     throw new Error("Client response is missing data.slug");
@@ -55,7 +61,7 @@ export async function readCreatedClient(
     throw new Error("Client response has an invalid data.status");
   }
 
-  return { slug, name, status };
+  return { id, slug, name, status };
 }
 
 function isClientStatus(value: unknown): value is ClientStatus {
