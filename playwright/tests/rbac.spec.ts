@@ -1,48 +1,106 @@
 import { expect, test } from "@playwright/test";
 
+import {
+  ClientsApi,
+  readCreatedClient,
+} from "../api/clients.api.js";
+import {
+  readApiError,
+  readCreatedTask,
+  TasksApi,
+} from "../api/tasks.api.js";
+import { buildClient } from "../data/client.factory.js";
+import { buildTask } from "../data/task.factory.js";
+import { cleanupTestData } from "../support/db/cleanup.js";
+
 const SEED_PROJECT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 test.describe("Admin (Mari)", () => {
   test.use({ storageState: "./.auth/mari.json" });
 
   test("can create and delete a task", async ({ request }) => {
-    const title = `RBAC Admin Task ${Date.now()}`;
-
-    const create = await request.post("/api/v1/tasks", {
-      data: {
-        title,
-        projectId: SEED_PROJECT_ID,
-        assignee: "Mari",
-        dueDate: "2026-12-31",
-        priority: "Low",
-        status: "To Do",
-      },
+    const tasksApi = new TasksApi(request);
+    const taskPayload = buildTask({
+      projectId: SEED_PROJECT_ID,
+      assignee: "Mari",
+      priority: "Low",
     });
 
-    expect(create.status()).toBe(201);
-    const created = await create.json();
-    const slug = created.data.slug as string;
+    let createdSlug: string | undefined;
 
-    const del = await request.delete(`/api/v1/tasks/${slug}`);
-    expect(del.status()).toBe(204);
+    try {
+      const createResponse = await tasksApi.createTask(taskPayload);
+      expect(createResponse.status()).toBe(201);
+
+      const created = await readCreatedTask(createResponse);
+      expect(created.title).toBe(taskPayload.title);
+      createdSlug = created.slug;
+
+      const deleteResponse = await tasksApi.deleteTask(created.slug);
+      expect(deleteResponse.status()).toBe(204);
+      createdSlug = undefined;
+    } finally {
+      if (createdSlug) {
+        await tasksApi.deleteTask(createdSlug);
+      }
+    }
   });
 
-  test("can mutate a client", async ({ request }) => {
-    const get = await request.get("/api/v1/clients/pax8");
-    expect(get.status()).toBe(200);
-    const { data } = await get.json();
-    const originalStatus = data.status as string;
-    const nextStatus = originalStatus === "Active" ? "On Hold" : "Active";
-
-    const patch = await request.patch("/api/v1/clients/pax8", {
-      data: { status: nextStatus },
+  test("rejects a task with an empty title", async ({ request }) => {
+    const tasksApi = new TasksApi(request);
+    const taskPayload = buildTask({
+      projectId: SEED_PROJECT_ID,
+      title: "",
     });
-    expect(patch.status()).toBe(200);
 
-    const restore = await request.patch("/api/v1/clients/pax8", {
-      data: { status: originalStatus },
-    });
-    expect(restore.status()).toBe(200);
+    const createResponse = await tasksApi.createTask(taskPayload);
+    expect(createResponse.status()).toBe(400);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.details?.some((detail) => detail.path === "title")).toBe(true);
+  });
+
+  test("can create and update a client", async ({ request }) => {
+    const clientsApi = new ClientsApi(request);
+    const clientPayload = buildClient();
+    let createdSlug: string | undefined;
+
+    try {
+      const createResponse = await clientsApi.createClient(clientPayload);
+      expect(createResponse.status()).toBe(201);
+
+      const created = await readCreatedClient(createResponse);
+      expect(created.name).toBe(clientPayload.name);
+      createdSlug = created.slug;
+
+      const nextStatus = created.status === "Active" ? "On Hold" : "Active";
+      const updateResponse = await clientsApi.updateClient(created.slug, {
+        status: nextStatus,
+      });
+      expect(updateResponse.status()).toBe(200);
+
+      const getResponse = await clientsApi.getClient(created.slug);
+      expect(getResponse.status()).toBe(200);
+      const fetched = await readCreatedClient(getResponse);
+      expect(fetched.status).toBe(nextStatus);
+    } finally {
+      if (createdSlug) {
+        await cleanupTestData({ clientSlugs: [createdSlug] });
+      }
+    }
+  });
+
+  test("rejects a client with an empty name", async ({ request }) => {
+    const clientsApi = new ClientsApi(request);
+    const clientPayload = buildClient({ name: "" });
+
+    const createResponse = await clientsApi.createClient(clientPayload);
+    expect(createResponse.status()).toBe(400);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.details?.some((detail) => detail.path === "name")).toBe(true);
   });
 });
 
@@ -55,17 +113,16 @@ test.describe("QA Engineer (Chris)", () => {
     const list = await request.get("/api/v1/clients");
     expect(list.status()).toBe(200);
 
-    const create = await request.post("/api/v1/clients", {
-      data: { name: `QA Forbidden Client ${Date.now()}`, status: "Active" },
-    });
-    expect(create.status()).toBe(403);
-    const createBody = await create.json();
-    expect(createBody.error.code).toBe("FORBIDDEN");
+    const clientsApi = new ClientsApi(request);
+    const createResponse = await clientsApi.createClient(buildClient());
+    expect(createResponse.status()).toBe(403);
+    const createError = await readApiError(createResponse);
+    expect(createError.code).toBe("FORBIDDEN");
 
-    const patch = await request.patch("/api/v1/clients/pax8", {
-      data: { status: "On Hold" },
+    const patchResponse = await clientsApi.updateClient("pax8", {
+      status: "On Hold",
     });
-    expect(patch.status()).toBe(403);
+    expect(patchResponse.status()).toBe(403);
   });
 
   test("can read contacts but cannot create or update them", async ({
@@ -93,30 +150,36 @@ test.describe("QA Engineer (Chris)", () => {
   });
 
   test("can create and delete a task", async ({ request }) => {
-    const title = `RBAC QA Task ${Date.now()}`;
-
-    const create = await request.post("/api/v1/tasks", {
-      data: {
-        title,
-        projectId: SEED_PROJECT_ID,
-        assignee: "Chris",
-        dueDate: "2026-12-31",
-        priority: "Medium",
-        status: "To Do",
-      },
+    const tasksApi = new TasksApi(request);
+    const taskPayload = buildTask({
+      projectId: SEED_PROJECT_ID,
+      assignee: "Chris",
+      priority: "Medium",
     });
 
-    expect(create.status()).toBe(201);
-    const created = await create.json();
-    const slug = created.data.slug as string;
+    let createdSlug: string | undefined;
 
-    const patch = await request.patch(`/api/v1/tasks/${slug}`, {
-      data: { status: "In Progress" },
-    });
-    expect(patch.status()).toBe(200);
+    try {
+      const createResponse = await tasksApi.createTask(taskPayload);
+      expect(createResponse.status()).toBe(201);
 
-    const del = await request.delete(`/api/v1/tasks/${slug}`);
-    expect(del.status()).toBe(204);
+      const created = await readCreatedTask(createResponse);
+      expect(created.title).toBe(taskPayload.title);
+      createdSlug = created.slug;
+
+      const patchResponse = await tasksApi.updateTask(created.slug, {
+        status: "In Progress",
+      });
+      expect(patchResponse.status()).toBe(200);
+
+      const deleteResponse = await tasksApi.deleteTask(created.slug);
+      expect(deleteResponse.status()).toBe(204);
+      createdSlug = undefined;
+    } finally {
+      if (createdSlug) {
+        await tasksApi.deleteTask(createdSlug);
+      }
+    }
   });
 
   test("can update a project", async ({ request }) => {
@@ -154,30 +217,44 @@ test.describe("Viewer (Alex)", () => {
       expect(res.status(), path).toBe(200);
     }
 
-    const postClient = await request.post("/api/v1/clients", {
-      data: { name: `Viewer Forbidden ${Date.now()}`, status: "Active" },
-    });
-    expect(postClient.status()).toBe(403);
-
-    const patchClient = await request.patch("/api/v1/clients/pax8", {
-      data: { status: "On Hold" },
-    });
-    expect(patchClient.status()).toBe(403);
-
-    const postTask = await request.post("/api/v1/tasks", {
-      data: {
-        title: `Viewer Forbidden Task ${Date.now()}`,
-        projectId: SEED_PROJECT_ID,
-        assignee: "Alex",
-        dueDate: "2026-12-31",
-      },
-    });
-    expect(postTask.status()).toBe(403);
-
     const delTask = await request.delete(
       "/api/v1/tasks/finish-regression-coverage",
     );
     expect(delTask.status()).toBe(403);
+  });
+
+  test("cannot create a client", async ({ request }) => {
+    const clientsApi = new ClientsApi(request);
+    const createResponse = await clientsApi.createClient(buildClient());
+    expect(createResponse.status()).toBe(403);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("FORBIDDEN");
+  });
+
+  test("cannot update a client", async ({ request }) => {
+    const clientsApi = new ClientsApi(request);
+    const updateResponse = await clientsApi.updateClient("pax8", {
+      status: "On Hold",
+    });
+    expect(updateResponse.status()).toBe(403);
+
+    const error = await readApiError(updateResponse);
+    expect(error.code).toBe("FORBIDDEN");
+  });
+
+  test("cannot create a task", async ({ request }) => {
+    const tasksApi = new TasksApi(request);
+    const taskPayload = buildTask({
+      projectId: SEED_PROJECT_ID,
+      assignee: "Alex",
+    });
+
+    const createResponse = await tasksApi.createTask(taskPayload);
+    expect(createResponse.status()).toBe(403);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("FORBIDDEN");
   });
 
   test("hides representative mutation controls in the UI", async ({ page }) => {
@@ -218,5 +295,27 @@ test.describe("Anonymous", () => {
     expect(res.status()).toBe(401);
     const body = await res.json();
     expect(body.error.code).toBe("UNAUTHORIZED");
+  });
+
+  test("cannot create a task", async ({ request }) => {
+    const tasksApi = new TasksApi(request);
+    const taskPayload = buildTask({
+      projectId: SEED_PROJECT_ID,
+    });
+
+    const createResponse = await tasksApi.createTask(taskPayload);
+    expect(createResponse.status()).toBe(401);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("UNAUTHORIZED");
+  });
+
+  test("cannot create a client", async ({ request }) => {
+    const clientsApi = new ClientsApi(request);
+    const createResponse = await clientsApi.createClient(buildClient());
+    expect(createResponse.status()).toBe(401);
+
+    const error = await readApiError(createResponse);
+    expect(error.code).toBe("UNAUTHORIZED");
   });
 });
