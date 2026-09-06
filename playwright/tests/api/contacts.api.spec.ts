@@ -1,16 +1,9 @@
-import { expect, test } from "@playwright/test";
-
-import {
-  ClientsApi,
-  readCreatedClient,
-} from "../../api/clients.api.js";
-import {
-  ContactsApi,
-  readCreatedContact,
-} from "../../api/contacts.api.js";
+import { readCreatedClient } from "../../api/clients.api.js";
+import { readCreatedContact } from "../../api/contacts.api.js";
 import { readApiError } from "../../api/tasks.api.js";
 import { buildClient } from "../../data/client.factory.js";
 import { buildContact } from "../../data/contact.factory.js";
+import { expect, test } from "../../fixtures/test.js";
 import { cleanupTestData } from "../../support/db/cleanup.js";
 
 const SEED_CLIENT_ID = "11111111-1111-4111-8111-111111111111";
@@ -19,9 +12,10 @@ test.describe("Contacts API", () => {
   test.describe("Admin (Mari)", () => {
     test.use({ storageState: "./.auth/mari.json" });
 
-    test("can create and update a contact", async ({ request }) => {
-      const clientsApi = new ClientsApi(request);
-      const contactsApi = new ContactsApi(request);
+    test("can create and update a contact", async ({
+      clientsApi,
+      contactsApi,
+    }) => {
       let clientSlug: string | undefined;
 
       try {
@@ -54,8 +48,7 @@ test.describe("Contacts API", () => {
       }
     });
 
-    test("rejects a contact with an invalid email", async ({ request }) => {
-      const contactsApi = new ContactsApi(request);
+    test("rejects a contact with an invalid email", async ({ contactsApi }) => {
       const contactPayload = buildContact({
         clientId: SEED_CLIENT_ID,
         email: "not-an-email",
@@ -75,11 +68,11 @@ test.describe("Contacts API", () => {
 
     test("can read contacts but cannot create or update them", async ({
       request,
+      contactsApi,
     }) => {
       const list = await request.get("/api/v1/contacts");
       expect(list.status()).toBe(200);
 
-      const contactsApi = new ContactsApi(request);
       const createResponse = await contactsApi.createContact(
         buildContact({ clientId: SEED_CLIENT_ID }),
       );
@@ -97,8 +90,7 @@ test.describe("Contacts API", () => {
   test.describe("Viewer (Alex)", () => {
     test.use({ storageState: "./.auth/alex.json" });
 
-    test("cannot create a contact", async ({ request }) => {
-      const contactsApi = new ContactsApi(request);
+    test("cannot create a contact", async ({ contactsApi }) => {
       const createResponse = await contactsApi.createContact(
         buildContact({ clientId: SEED_CLIENT_ID }),
       );
@@ -108,8 +100,7 @@ test.describe("Contacts API", () => {
       expect(error.code).toBe("FORBIDDEN");
     });
 
-    test("cannot update a contact", async ({ request }) => {
-      const contactsApi = new ContactsApi(request);
+    test("cannot update a contact", async ({ contactsApi }) => {
       const updateResponse = await contactsApi.updateContact("mitchell-lubbers", {
         role: "Should Not Update",
       });
@@ -123,8 +114,7 @@ test.describe("Contacts API", () => {
   test.describe("Anonymous", () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    test("cannot create a contact", async ({ request }) => {
-      const contactsApi = new ContactsApi(request);
+    test("cannot create a contact", async ({ contactsApi }) => {
       const createResponse = await contactsApi.createContact(
         buildContact({ clientId: SEED_CLIENT_ID }),
       );

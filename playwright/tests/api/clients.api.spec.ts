@@ -1,19 +1,14 @@
-import { expect, test } from "@playwright/test";
-
-import {
-  ClientsApi,
-  readCreatedClient,
-} from "../../api/clients.api.js";
+import { readCreatedClient } from "../../api/clients.api.js";
 import { readApiError } from "../../api/tasks.api.js";
 import { buildClient } from "../../data/client.factory.js";
+import { expect, test } from "../../fixtures/test.js";
 import { cleanupTestData } from "../../support/db/cleanup.js";
 
 test.describe("Clients API", () => {
   test.describe("Admin (Mari)", () => {
     test.use({ storageState: "./.auth/mari.json" });
 
-    test("can create and update a client", async ({ request }) => {
-      const clientsApi = new ClientsApi(request);
+    test("can create and update a client", async ({ clientsApi }) => {
       const clientPayload = buildClient();
       let createdSlug: string | undefined;
 
@@ -42,8 +37,7 @@ test.describe("Clients API", () => {
       }
     });
 
-    test("rejects a client with an empty name", async ({ request }) => {
-      const clientsApi = new ClientsApi(request);
+    test("rejects a client with an empty name", async ({ clientsApi }) => {
       const clientPayload = buildClient({ name: "" });
 
       const createResponse = await clientsApi.createClient(clientPayload);
@@ -60,11 +54,11 @@ test.describe("Clients API", () => {
 
     test("can read clients but cannot create or update them", async ({
       request,
+      clientsApi,
     }) => {
       const list = await request.get("/api/v1/clients");
       expect(list.status()).toBe(200);
 
-      const clientsApi = new ClientsApi(request);
       const createResponse = await clientsApi.createClient(buildClient());
       expect(createResponse.status()).toBe(403);
       const createError = await readApiError(createResponse);
@@ -80,8 +74,7 @@ test.describe("Clients API", () => {
   test.describe("Viewer (Alex)", () => {
     test.use({ storageState: "./.auth/alex.json" });
 
-    test("cannot create a client", async ({ request }) => {
-      const clientsApi = new ClientsApi(request);
+    test("cannot create a client", async ({ clientsApi }) => {
       const createResponse = await clientsApi.createClient(buildClient());
       expect(createResponse.status()).toBe(403);
 
@@ -89,8 +82,7 @@ test.describe("Clients API", () => {
       expect(error.code).toBe("FORBIDDEN");
     });
 
-    test("cannot update a client", async ({ request }) => {
-      const clientsApi = new ClientsApi(request);
+    test("cannot update a client", async ({ clientsApi }) => {
       const updateResponse = await clientsApi.updateClient("pax8", {
         status: "On Hold",
       });
@@ -111,8 +103,7 @@ test.describe("Clients API", () => {
       expect(body.error.code).toBe("UNAUTHORIZED");
     });
 
-    test("cannot create a client", async ({ request }) => {
-      const clientsApi = new ClientsApi(request);
+    test("cannot create a client", async ({ clientsApi }) => {
       const createResponse = await clientsApi.createClient(buildClient());
       expect(createResponse.status()).toBe(401);
 

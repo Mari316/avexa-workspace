@@ -1,11 +1,6 @@
-import { expect, test } from "@playwright/test";
-
-import {
-  readApiError,
-  readCreatedTask,
-  TasksApi,
-} from "../../api/tasks.api.js";
+import { readApiError, readCreatedTask } from "../../api/tasks.api.js";
 import { buildTask } from "../../data/task.factory.js";
+import { expect, test } from "../../fixtures/test.js";
 
 const SEED_PROJECT_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
@@ -13,8 +8,7 @@ test.describe("Tasks API", () => {
   test.describe("Admin (Mari)", () => {
     test.use({ storageState: "./.auth/mari.json" });
 
-    test("can create and delete a task", async ({ request }) => {
-      const tasksApi = new TasksApi(request);
+    test("can create and delete a task", async ({ tasksApi }) => {
       const taskPayload = buildTask({
         projectId: SEED_PROJECT_ID,
         assignee: "Mari",
@@ -41,8 +35,7 @@ test.describe("Tasks API", () => {
       }
     });
 
-    test("rejects a task with an empty title", async ({ request }) => {
-      const tasksApi = new TasksApi(request);
+    test("rejects a task with an empty title", async ({ tasksApi }) => {
       const taskPayload = buildTask({
         projectId: SEED_PROJECT_ID,
         title: "",
@@ -60,8 +53,7 @@ test.describe("Tasks API", () => {
   test.describe("QA Engineer (Chris)", () => {
     test.use({ storageState: "./.auth/chris.json" });
 
-    test("can create and delete a task", async ({ request }) => {
-      const tasksApi = new TasksApi(request);
+    test("can create and delete a task", async ({ tasksApi }) => {
       const taskPayload = buildTask({
         projectId: SEED_PROJECT_ID,
         assignee: "Chris",
@@ -116,8 +108,7 @@ test.describe("Tasks API", () => {
       expect(delTask.status()).toBe(403);
     });
 
-    test("cannot create a task", async ({ request }) => {
-      const tasksApi = new TasksApi(request);
+    test("cannot create a task", async ({ tasksApi }) => {
       const taskPayload = buildTask({
         projectId: SEED_PROJECT_ID,
         assignee: "Alex",
@@ -134,8 +125,7 @@ test.describe("Tasks API", () => {
   test.describe("Anonymous", () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    test("cannot create a task", async ({ request }) => {
-      const tasksApi = new TasksApi(request);
+    test("cannot create a task", async ({ tasksApi }) => {
       const taskPayload = buildTask({
         projectId: SEED_PROJECT_ID,
       });
