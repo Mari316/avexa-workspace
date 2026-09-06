@@ -10,8 +10,10 @@ test.describe("Dashboard UI", () => {
 
     test("shows an API-created task in Recent Tasks", async ({
       client,
+      clientsPage,
       page,
       projectsApi,
+      taskDetailsPage,
       tasksApi,
     }) => {
       const projectPayload = buildProject({ clientId: client.id });
@@ -33,12 +35,34 @@ test.describe("Dashboard UI", () => {
       await expect(page.getByText("Loading dashboard…")).toHaveCount(0);
       await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 
-      const recentTasks = page.getByRole("heading", {
-        name: "Recent Tasks",
-        exact: true,
-      }).locator("..");
-      await expect(recentTasks).toBeVisible();
-      await expect(recentTasks.getByText(taskPayload.title, { exact: true })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Recent Tasks", exact: true }),
+      ).toBeVisible();
+
+      const recentTaskLink = page.getByRole("main").getByRole("link", {
+        name: taskPayload.title,
+      });
+      await expect(recentTaskLink).toBeVisible();
+      await expect(recentTaskLink).toHaveAttribute(
+        "href",
+        `/tasks/${created.slug}`,
+      );
+
+      await recentTaskLink.click();
+      await expect(page).toHaveURL(new RegExp(`/tasks/${created.slug}/?$`));
+      await expect(taskDetailsPage.heading).toHaveText(taskPayload.title);
+
+      await page.goto("/");
+      await expect(page.getByRole("heading", { name: /Welcome back/ })).toBeVisible();
+      await expect(page.getByText("Loading dashboard…")).toHaveCount(0);
+
+      const clientsCard = page.getByRole("main").getByRole("link", {
+        name: "Clients",
+      });
+      await expect(clientsCard).toHaveAttribute("href", "/clients");
+      await clientsCard.click();
+      await expect(page).toHaveURL(/\/clients\/?$/);
+      await expect(clientsPage.heading).toBeVisible();
     });
   });
 });

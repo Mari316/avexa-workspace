@@ -1,11 +1,16 @@
-import styles from "./StatsCard.module.css";
+"use client";
+
+import Link from "next/link";
 import { ReactNode } from "react";
+
+import styles from "./StatsCard.module.css";
 
 type StatsCardProps = {
   icon: ReactNode;
   title: string;
   value: string;
   subtitle: string;
+  href: string;
 };
 
 export default function StatsCard({
@@ -13,9 +18,10 @@ export default function StatsCard({
   title,
   value,
   subtitle,
+  href,
 }: StatsCardProps) {
   return (
-    <div className={styles.card}>
+    <Link href={href} className={styles.card}>
       <div className={styles.icon}>{icon}</div>
 
       <div className={styles.title}>{title}</div>
@@ -23,6 +29,6 @@ export default function StatsCard({
       <div className={styles.value}>{value}</div>
 
       <div className={styles.subtitle}>{subtitle}</div>
-    </div>
+    </Link>
   );
 }

@@ -1,3 +1,7 @@
+"use client";
+
+import Link from "next/link";
+
 import type { DashboardTaskItem } from "../../lib/api/dashboard";
 import { formatTaskDueDate } from "../../lib/mockData";
 
@@ -16,14 +20,18 @@ export default function RecentTasks({ tasks }: RecentTasksProps) {
         <p className={styles.empty}>No recent tasks.</p>
       ) : (
         tasks.map((task) => (
-          <div className={styles.task} key={task.slug}>
+          <Link
+            className={styles.task}
+            href={`/tasks/${task.slug}`}
+            key={task.slug}
+          >
             <div className={styles.info}>
               <div className={styles.title}>{task.title}</div>
               <div className={styles.project}>{task.projectName}</div>
             </div>
 
             <div className={styles.due}>{formatTaskDueDate(task.dueDate)}</div>
-          </div>
+          </Link>
         ))
       )}
     </div>

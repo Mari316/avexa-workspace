@@ -102,6 +102,7 @@ export default function Home() {
               title="Clients"
               value={String(dashboard.totals.clients)}
               subtitle={`${dashboard.totals.activeClients} active`}
+              href="/clients"
             />
 
             <StatsCard
@@ -109,6 +110,7 @@ export default function Home() {
               title="Projects"
               value={String(dashboard.totals.projects)}
               subtitle={`${dashboard.totals.activeProjects} active`}
+              href="/projects"
             />
 
             <StatsCard
@@ -116,6 +118,7 @@ export default function Home() {
               title="Tasks"
               value={String(dashboard.totals.tasks)}
               subtitle={`${dashboard.totals.overdueTasks} overdue`}
+              href="/tasks"
             />
 
             <StatsCard
@@ -123,6 +126,7 @@ export default function Home() {
               title="Notes"
               value={String(dashboard.totals.notes)}
               subtitle={`${dashboard.totals.pinnedNotes} pinned`}
+              href="/notes"
             />
           </div>
 

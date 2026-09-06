@@ -1,3 +1,6 @@
+"use client";
+
+import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 
 import type { DashboardTaskItem } from "../../lib/api/dashboard";
@@ -22,14 +25,18 @@ export default function UpcomingDeadlines({ tasks }: UpcomingDueDatesProps) {
       ) : (
         <div className={styles.list}>
           {tasks.map((task) => (
-            <div className={styles.deadline} key={task.slug}>
+            <Link
+              className={styles.deadline}
+              href={`/tasks/${task.slug}`}
+              key={task.slug}
+            >
               <div className={styles.date}>{formatTaskDueDate(task.dueDate)}</div>
 
               <div>
                 <div className={styles.title}>{task.title}</div>
                 <div className={styles.project}>{task.projectName}</div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
