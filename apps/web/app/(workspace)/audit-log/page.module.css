@@ -90,6 +90,16 @@
   cursor: not-allowed;
 }
 
+.status {
+  color: #64748b;
+  font-size: 16px;
+}
+
+.loadError {
+  font-size: 15px;
+  color: #ef4444;
+}
+
 .resultCount {
   margin-bottom: 24px;
   color: #64748b;
@@ -175,26 +185,6 @@
 }
 
 .actionDeleted {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
-.actionLogin {
-  background: #f3e8ff;
-  color: #7e22ce;
-}
-
-.actionExported {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-.statusSuccess {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.statusFailed {
   background: #fee2e2;
   color: #b91c1c;
 }
