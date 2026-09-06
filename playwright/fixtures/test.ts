@@ -5,6 +5,7 @@ import {
   readCreatedClient,
   type CreatedClient,
 } from "../api/clients.api.js";
+import { AuditLogApi } from "../api/audit-log.api.js";
 import { ContactsApi } from "../api/contacts.api.js";
 import { DashboardApi } from "../api/dashboard.api.js";
 import { NotesApi } from "../api/notes.api.js";
@@ -26,6 +27,7 @@ type Fixtures = {
   contactsApi: ContactsApi;
   notesApi: NotesApi;
   dashboardApi: DashboardApi;
+  auditLogApi: AuditLogApi;
   clientsPage: ClientsPage;
   contactsPage: ContactsPage;
   projectsPage: ProjectsPage;
@@ -53,6 +55,9 @@ export const test = base.extend<Fixtures>({
   },
   dashboardApi: async ({ request }, use) => {
     await use(new DashboardApi(request));
+  },
+  auditLogApi: async ({ request }, use) => {
+    await use(new AuditLogApi(request));
   },
   clientsPage: async ({ page }, use) => {
     await use(new ClientsPage(page));

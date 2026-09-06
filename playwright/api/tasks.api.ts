@@ -22,6 +22,10 @@ export class TasksApi {
     return this.request.post("/api/v1/tasks", { data: payload });
   }
 
+  getTask(slug: string): Promise<APIResponse> {
+    return this.request.get(`/api/v1/tasks/${encodeURIComponent(slug)}`);
+  }
+
   updateTask(slug: string, payload: UpdateTaskRequest): Promise<APIResponse> {
     return this.request.patch(`/api/v1/tasks/${encodeURIComponent(slug)}`, {
       data: payload,
