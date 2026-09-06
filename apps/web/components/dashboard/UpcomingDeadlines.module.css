@@ -20,6 +20,12 @@
     color: #0f172a;
   }
   
+  .empty {
+    margin: 0;
+    color: #64748b;
+    font-size: 16px;
+  }
+
   .list {
     display: flex;
     flex-direction: column;

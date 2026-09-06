@@ -35,6 +35,16 @@
   margin-top: 32px;
 }
 
+.status {
+  color: #64748b;
+  font-size: 16px;
+}
+
+.loadError {
+  font-size: 15px;
+  color: #ef4444;
+}
+
 .placeholder {
   background: white;
 

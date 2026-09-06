@@ -1,65 +1,31 @@
-import {
-  Bug,
-  CircleCheck,
-  Clock3,
-  GitPullRequest,
-} from "lucide-react";
+import type { DashboardTaskItem } from "../../lib/api/dashboard";
+import { formatTaskDueDate } from "../../lib/mockData";
 
 import styles from "./RecentTasks.module.css";
 
-const tasks = [
-  {
-    title: "Finish PAM-1972",
-    project: "Pax8",
-    due: "Today",
-    icon: <CircleCheck size={18} />,
-    color: "#22c55e",
-  },
-  {
-    title: "Review PR #481",
-    project: "Cybertek",
-    due: "Tomorrow",
-    icon: <GitPullRequest size={18} />,
-    color: "#f59e0b",
-  },
-  {
-    title: "Update Playwright Tests",
-    project: "OrangeHRM",
-    due: "Aug 5",
-    icon: <Clock3 size={18} />,
-    color: "#3b82f6",
-  },
-  {
-    title: "Investigate Login Bug",
-    project: "Lemonade",
-    due: "Yesterday",
-    icon: <Bug size={18} />,
-    color: "#ef4444",
-  },
-];
+type RecentTasksProps = {
+  tasks: DashboardTaskItem[];
+};
 
-export default function RecentTasks() {
+export default function RecentTasks({ tasks }: RecentTasksProps) {
   return (
     <div className={styles.card}>
       <h2>Recent Tasks</h2>
 
-      {tasks.map((task) => (
-        <div className={styles.task} key={task.title}>
-          <div
-            className={styles.icon}
-            style={{ color: task.color }}
-          >
-            {task.icon}
-          </div>
+      {tasks.length === 0 ? (
+        <p className={styles.empty}>No recent tasks.</p>
+      ) : (
+        tasks.map((task) => (
+          <div className={styles.task} key={task.slug}>
+            <div className={styles.info}>
+              <div className={styles.title}>{task.title}</div>
+              <div className={styles.project}>{task.projectName}</div>
+            </div>
 
-          <div className={styles.info}>
-            <div className={styles.title}>{task.title}</div>
-            <div className={styles.project}>{task.project}</div>
+            <div className={styles.due}>{formatTaskDueDate(task.dueDate)}</div>
           </div>
-
-          <div className={styles.due}>{task.due}</div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 }

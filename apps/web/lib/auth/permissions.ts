@@ -8,6 +8,7 @@ export const ROLES = ["admin", "qa_engineer", "viewer"] as const;
 export type Role = (typeof ROLES)[number];
 
 export type Permission =
+  | "dashboard:read"
   | "clients:read"
   | "clients:create"
   | "clients:update"
@@ -28,6 +29,7 @@ export type Permission =
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   admin: [
+    "dashboard:read",
     "clients:read",
     "clients:create",
     "clients:update",
@@ -47,6 +49,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "notes:delete",
   ],
   qa_engineer: [
+    "dashboard:read",
     "clients:read",
     "contacts:read",
     "projects:read",
@@ -62,6 +65,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "notes:delete",
   ],
   viewer: [
+    "dashboard:read",
     "clients:read",
     "contacts:read",
     "projects:read",
