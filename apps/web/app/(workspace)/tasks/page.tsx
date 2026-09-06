@@ -201,7 +201,7 @@ export default function TasksPage() {
     getProjectsByClientId,
   } = useAppData();
   const canCreateTask = usePermission("tasks:create");
-  const settings = useUserSettings();
+  const { settings, isLoading: isLoadingSettings } = useUserSettings();
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -315,6 +315,7 @@ export default function TasksPage() {
               type="button"
               className={styles.addButton}
               onClick={openModal}
+              disabled={isLoadingSettings}
             >
               + Add Task
             </button>

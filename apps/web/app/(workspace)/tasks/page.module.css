@@ -35,8 +35,13 @@
   transition: background 0.15s ease;
 }
 
-.addButton:hover {
+.addButton:hover:not(:disabled) {
   background: #1d4ed8;
+}
+
+.addButton:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
 }
 
 .successBanner {

@@ -104,7 +104,7 @@ export default function ProjectsPage() {
     addProject,
   } = useAppData();
   const canCreateProject = usePermission("projects:create");
-  const settings = useUserSettings();
+  const { settings, isLoading: isLoadingSettings } = useUserSettings();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ProjectFormData>(emptyForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -176,6 +176,7 @@ export default function ProjectsPage() {
               type="button"
               className={styles.addButton}
               onClick={openModal}
+              disabled={isLoadingSettings}
             >
               + Add Project
             </button>
