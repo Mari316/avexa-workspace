@@ -1,34 +1,22 @@
-import { expect, test } from "@playwright/test";
-
+import { expect, test } from "../../fixtures/test.js";
 import { cleanupTestData } from "../../support/db/cleanup.js";
 
-test("user can navigate to Clients page", async ({ page }) => {
-  await page.goto("/");
-
-  const clientsLink = page.getByRole("link", { name: "Clients" });
-  await clientsLink.click();
-  await expect(page.getByRole("heading", { name: "Clients" })).toBeVisible();
+test("user can navigate to Clients page", async ({ clientsPage }) => {
+  await clientsPage.openFromHome();
+  await expect(clientsPage.heading).toBeVisible();
 });
 
-test("user can add a new client", async ({ page }) => {
-  await page.goto("/clients");
+test("user can add a new client", async ({ clientsPage }) => {
+  await clientsPage.goto();
 
   const clientName = `PW clients-add ${Date.now()}`;
   let createdSlug: string | undefined;
 
   try {
-    await page.getByRole("button", { name: "Add Client" }).click();
+    await clientsPage.createClient({ name: clientName, status: "Active" });
+    await expect(clientsPage.clientRow(clientName)).toBeVisible();
 
-    await page.getByLabel("Client Name").fill(clientName);
-    await page.getByLabel("Status").selectOption({ label: "Active" });
-
-    const dialog = page.getByRole("dialog");
-    await dialog.getByRole("button", { name: "Add Client" }).click();
-
-    const clientRow = page.getByRole("row").filter({ hasText: clientName });
-    await expect(clientRow).toBeVisible();
-
-    const href = await clientRow.getByRole("link", { name: /View/ }).getAttribute("href");
+    const href = await clientsPage.clientViewLink(clientName).getAttribute("href");
     createdSlug = href?.split("/").filter(Boolean).pop();
     expect(createdSlug).toBeTruthy();
   } finally {

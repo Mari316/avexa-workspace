@@ -1,14 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "../../fixtures/test.js";
 
 test.describe("Viewer (Alex)", () => {
   test.use({ storageState: "./.auth/alex.json" });
 
-  test("hides representative mutation controls in the UI", async ({ page }) => {
-    await page.goto("/clients");
-    await expect(page.getByRole("heading", { name: "Clients" })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Add Client" }),
-    ).toHaveCount(0);
+  test("hides representative mutation controls in the UI", async ({
+    page,
+    clientsPage,
+  }) => {
+    await clientsPage.goto();
+    await expect(clientsPage.heading).toBeVisible();
+    await expect(clientsPage.addClientButton).toHaveCount(0);
 
     await page.goto("/projects");
     await expect(
