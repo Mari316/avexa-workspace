@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { authClient } from "../../../lib/auth-client";
 
@@ -16,7 +16,6 @@ function safeNextPath(value: string | null): string {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,8 +38,9 @@ function LoginForm() {
         return;
       }
 
-      router.replace(safeNextPath(searchParams.get("next")));
-      router.refresh();
+      // Session cookie is only visible to the workspace layout on the next
+      // document request. Client replace+refresh can stay on /login.
+      window.location.replace(safeNextPath(searchParams.get("next")));
     } catch {
       setError("Unable to sign in. Please try again.");
     } finally {

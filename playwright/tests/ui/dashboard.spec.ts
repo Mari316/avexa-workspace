@@ -16,6 +16,10 @@ test.describe("Dashboard UI", () => {
       taskDetailsPage,
       tasksApi,
     }) => {
+      // First next-dev compile of /tasks/[slug] under parallel workers can
+      // exceed the default 30s test budget after dashboard setup + click.
+      test.setTimeout(60_000);
+
       const projectPayload = buildProject({ clientId: client.id });
       const createProjectResponse = await projectsApi.createProject(projectPayload);
       expect(createProjectResponse.status()).toBe(201);
@@ -49,7 +53,10 @@ test.describe("Dashboard UI", () => {
       );
 
       await recentTaskLink.click();
-      await expect(page).toHaveURL(new RegExp(`/tasks/${created.slug}/?$`));
+      // Soft nav URL stays on / until first next-dev compile of /tasks/[slug].
+      await expect(page).toHaveURL(new RegExp(`/tasks/${created.slug}/?$`), {
+        timeout: 45_000,
+      });
       await expect(taskDetailsPage.heading).toHaveText(taskPayload.title);
 
       await page.goto("/");
