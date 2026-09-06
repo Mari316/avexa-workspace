@@ -10,6 +10,7 @@ import { ProjectsApi } from "../api/projects.api.js";
 import { TasksApi } from "../api/tasks.api.js";
 import { buildClient } from "../data/client.factory.js";
 import { ClientsPage } from "../pages/clients.page.js";
+import { ContactsPage } from "../pages/contacts.page.js";
 import { ProjectsPage } from "../pages/projects.page.js";
 import { TaskDetailsPage } from "../pages/task-details.page.js";
 import { TasksPage } from "../pages/tasks.page.js";
@@ -21,6 +22,7 @@ type Fixtures = {
   projectsApi: ProjectsApi;
   contactsApi: ContactsApi;
   clientsPage: ClientsPage;
+  contactsPage: ContactsPage;
   projectsPage: ProjectsPage;
   tasksPage: TasksPage;
   taskDetailsPage: TaskDetailsPage;
@@ -42,6 +44,9 @@ export const test = base.extend<Fixtures>({
   },
   clientsPage: async ({ page }, use) => {
     await use(new ClientsPage(page));
+  },
+  contactsPage: async ({ page }, use) => {
+    await use(new ContactsPage(page));
   },
   projectsPage: async ({ page }, use) => {
     await use(new ProjectsPage(page));
