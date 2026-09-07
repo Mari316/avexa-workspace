@@ -48,11 +48,14 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Typecheck Playwright
-        run: npm run check-types -w @avexa/playwright
-
       - name: Prepare avexa_test
         run: npm run db:test:prepare
+
+      - name: Typecheck web
+        run: npm run check-types -w web
+
+      - name: Typecheck Playwright
+        run: npm run check-types -w @avexa/playwright
 
       - name: Run Playwright
         run: npm run test -w @avexa/playwright
