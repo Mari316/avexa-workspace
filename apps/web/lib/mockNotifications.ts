@@ -55,6 +55,8 @@ export const initialNotifications: Notification[] = [
 
 type NotificationListener = () => void;
 
+export const READ_NOTIFICATION_IDS_KEY = "avexa.readNotificationIds";
+
 let notifications: Notification[] = initialNotifications.map((notification) => ({
   ...notification,
 }));
@@ -63,6 +65,80 @@ const listeners = new Set<NotificationListener>();
 
 function notifyListeners(): void {
   listeners.forEach((listener) => listener());
+}
+
+function loadReadNotificationIds(): Set<string> {
+  if (typeof window === "undefined") {
+    return new Set();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(READ_NOTIFICATION_IDS_KEY);
+
+    if (!raw) {
+      return new Set();
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return new Set();
+    }
+
+    return new Set(
+      parsed.filter((id): id is string => typeof id === "string" && id.length > 0),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function persistReadNotificationIds(ids: Set<string>): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      READ_NOTIFICATION_IDS_KEY,
+      JSON.stringify([...ids]),
+    );
+  } catch {
+    // localStorage may be unavailable (private mode, quota). Keep in-memory state.
+  }
+}
+
+function rememberReadNotificationIds(ids: string[]): void {
+  const next = loadReadNotificationIds();
+
+  for (const id of ids) {
+    next.add(id);
+  }
+
+  persistReadNotificationIds(next);
+}
+
+export function applyPersistedNotificationReads(): void {
+  const readIds = loadReadNotificationIds();
+
+  if (readIds.size === 0) {
+    return;
+  }
+
+  let changed = false;
+
+  notifications = notifications.map((notification) => {
+    if (notification.read || !readIds.has(notification.id)) {
+      return notification;
+    }
+
+    changed = true;
+    return { ...notification, read: true };
+  });
+
+  if (changed) {
+    notifyListeners();
+  }
 }
 
 function prependNotification(
@@ -105,6 +181,7 @@ export function markNotificationRead(id: string): void {
   notifications = notifications.map((notification) =>
     notification.id === id ? { ...notification, read: true } : notification,
   );
+  rememberReadNotificationIds([id]);
   notifyListeners();
 }
 
@@ -113,6 +190,7 @@ export function markAllNotificationsRead(): void {
     ...notification,
     read: true,
   }));
+  rememberReadNotificationIds(notifications.map((notification) => notification.id));
   notifyListeners();
 }
 

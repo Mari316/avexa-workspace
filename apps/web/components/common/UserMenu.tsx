@@ -57,15 +57,13 @@ export default function UserMenu() {
   }, []);
 
   function toggleMenu() {
-    setIsOpen((current) => {
-      const nextOpen = !current;
+    const nextOpen = !isOpen;
 
-      if (nextOpen) {
-        openHeaderDropdown("userMenu");
-      }
+    if (nextOpen) {
+      openHeaderDropdown("userMenu");
+    }
 
-      return nextOpen;
-    });
+    setIsOpen(nextOpen);
   }
 
   function openProfileModal() {

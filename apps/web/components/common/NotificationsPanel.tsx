@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { openHeaderDropdown, subscribeHeaderDropdown } from "../../lib/headerDropdowns";
 import {
+  applyPersistedNotificationReads,
   getNotificationHref,
   getNotifications,
   markAllNotificationsRead,
@@ -27,9 +28,14 @@ export default function NotificationsPanel() {
   ).length;
 
   useEffect(() => {
-    return subscribeNotifications(() => {
+    const unsubscribe = subscribeNotifications(() => {
       setNotifications(getNotifications());
     });
+
+    applyPersistedNotificationReads();
+    setNotifications(getNotifications());
+
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -58,15 +64,13 @@ export default function NotificationsPanel() {
   }, []);
 
   function toggleDropdown() {
-    setIsOpen((current) => {
-      const nextOpen = !current;
+    const nextOpen = !isOpen;
 
-      if (nextOpen) {
-        openHeaderDropdown("notifications");
-      }
+    if (nextOpen) {
+      openHeaderDropdown("notifications");
+    }
 
-      return nextOpen;
-    });
+    setIsOpen(nextOpen);
   }
 
   function handleMarkAllRead() {
