@@ -34,6 +34,8 @@ test.describe("Viewer (Alex)", () => {
     await expect(
       page.getByRole("button", { name: "Add Resource" }),
     ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
 
     await page.goto("/team");
     await expect(
